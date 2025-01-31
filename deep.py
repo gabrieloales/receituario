@@ -12,8 +12,8 @@ import streamlit as st
 # ----------------------------------------------
 # CONSTANTES E CONFIGURAÇÕES
 # ----------------------------------------------
-USERS_FILE = "users.json"       # Arquivo para armazenar usuários
-USER_FILES_DIR = "user_files"   # Pasta base para armazenar arquivos de cada usuário
+USERS_FILE = "users.json"         # Arquivo para armazenar usuários
+USER_FILES_DIR = "user_files"     # Pasta base para armazenar arquivos de cada usuário
 
 # Administrador "principal" hard-coded (opcional).
 ADMIN_LOGIN = "larsen"
@@ -345,9 +345,13 @@ def gerar_pdf_receita(
 
     # Rodapé: Assinatura, Data, Nome, CRMV
     # Posição 4 cm à esquerda do centro (shifted 2 cm mais à esquerda)
-    x_centro_rodape = (largura / 2) - 4 * cm  # Original: -2 cm, agora -4 cm
+    x_centro_rodape = (largura / 2) - 4 * cm  # Mantém-se 2 cm mais à esquerda
     # Posição 6 cm no rodapé, movendo 2 cm para cima
-    y_rodape = 6 * cm  # Original: 4 cm, agora 6 cm
+    y_rodape = 6 * cm  # Anteriormente 6 cm, agora será ajustado para 8 cm para descer a assinatura 2 cm
+
+    # **Ajuste na posição da assinatura:**
+    # Mover a assinatura 2 cm para baixo, aumentando y_rodape em 2 cm
+    y_rodape += 2 * cm  # Agora y_rodape = 8 cm
 
     # Desenha a imagem da assinatura (se existir)
     assinatura_width = 4 * cm
@@ -706,9 +710,11 @@ def main():
             crmv = usuario_atual.get("crmv") or ""
 
             # Nome do PDF (personalizado)
-            # Sanitiza o CPF para remover caracteres inválidos no nome do arquivo
-            cpf_sanitizado = re.sub(r'\D', '', cpf)
-            nome_pdf = f"{paciente.replace(' ', '_')} - {cpf_sanitizado}.pdf"
+            # Formata o CPF com pontuação
+            cpf_formatado = formatar_cpf(cpf)
+            # Sanitiza o nome do paciente para evitar caracteres inválidos no nome do arquivo
+            paciente_sanitizado = re.sub(r'[^\w\s-]', '', paciente).strip().replace(' ', '_')
+            nome_pdf = f"{paciente_sanitizado} - {cpf_formatado}.pdf"
 
             # Gera PDF
             nome_pdf = gerar_pdf_receita(
@@ -741,9 +747,9 @@ def main():
                     mime="application/pdf"
                 )
 
-# ----------------------------------
-# NAVEGAÇÃO ENTRE AS TELAS
-# ----------------------------------
+    # ----------------------------------
+    # NAVEGAÇÃO ENTRE AS TELAS
+    # ----------------------------------
     if escolha == "Gerar Receita":
         tela_receita()
     elif escolha == "Meu Perfil":
