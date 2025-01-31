@@ -69,22 +69,20 @@ def verificar_login(login, senha):
         }
     return None
 
-def cadastrar_usuario(novo_login, nova_senha, is_admin=False):
+def cadastrar_usuario(novo_login, nova_senha, nome_vet=None, crmv=None, is_admin=False):
     """Cadastra um novo usuário (ou atualiza se já existir)."""
     usuarios = carregar_usuarios()
     if novo_login not in usuarios:
         usuarios[novo_login] = {}
     usuarios[novo_login]["password"] = nova_senha
     usuarios[novo_login]["is_admin"] = is_admin
-    # Se ainda não existir, define None
+    usuarios[novo_login]["nome_vet"] = nome_vet
+    usuarios[novo_login]["crmv"] = crmv
+    # Se ainda não existir, define None para imagens
     if "background_image" not in usuarios[novo_login]:
         usuarios[novo_login]["background_image"] = None
     if "signature_image" not in usuarios[novo_login]:
         usuarios[novo_login]["signature_image"] = None
-    if "nome_vet" not in usuarios[novo_login]:
-        usuarios[novo_login]["nome_vet"] = None
-    if "crmv" not in usuarios[novo_login]:
-        usuarios[novo_login]["crmv"] = None
 
     salvar_usuarios(usuarios)
 
@@ -114,17 +112,6 @@ def atualizar_imagem_usuario(login, image_path, tipo="fundo"):
     else:
         usuarios[login]["signature_image"] = image_path
 
-    salvar_usuarios(usuarios)
-
-def atualizar_dados_veterinario(login, nome_vet, crmv):
-    """
-    Atualiza o nome do(a) veterinário(a) e CRMV no perfil do usuário.
-    """
-    usuarios = carregar_usuarios()
-    if login not in usuarios:
-        return
-    usuarios[login]["nome_vet"] = nome_vet
-    usuarios[login]["crmv"] = crmv
     salvar_usuarios(usuarios)
 
 # ----------------------------------------------
@@ -252,12 +239,12 @@ def gerar_pdf_receita(
     # ----- Configurações de Posição -----
     config_posicoes = {
         "assinatura_x": (largura / 2) - 4 * cm,  # 4 cm à esquerda do centro
-        "assinatura_y": 5.3 * cm,                 # 2 cm abaixo do y_rodape anterior de 6 cm
+        "assinatura_y": 8 * cm,                 # 2 cm abaixo do y_rodape anterior de 6 cm
         "assinatura_width": 4 * cm,
-        "assinatura_height": 2.0 * cm,
-        "data_y": 4.8 * cm,  # Aproximadamente logo abaixo da assinatura
-        "mv_y": 4.3 * cm,
-        "crmv_y": 3.8 * cm
+        "assinatura_height": 1.5 * cm,
+        "data_y": 7.8 * cm,  # Aproximadamente logo abaixo da assinatura
+        "mv_y": 7.3 * cm,
+        "crmv_y": 6.8 * cm
     }
 
     # ----- Inserção da Imagem de Fundo -----
@@ -362,6 +349,7 @@ def gerar_pdf_receita(
             texto_conc = f"   CONCENTRAÇÃO: {conc}"
             c.setFont(font_value, font_value_size)
             c.drawString(margem_esquerda, y_atual, texto_conc)
+            c.setFont("Helvetica-Bold", font_med_title)
             y_atual -= 0.6 * cm
 
         # Desenha a linha contínua separadora
@@ -489,26 +477,28 @@ def main():
         usuarios = carregar_usuarios()
         if usuarios:
             for u, data in usuarios.items():
-                st.write(f"- **Login**: {u} | Admin: {data.get('is_admin', False)}")
+                st.write(f"- **Login**: {u} | Admin: {data.get('is_admin', False)} | Nome Vet: {data.get('nome_vet', 'Não definido')} | CRMV: {data.get('crmv', 'Não definido')}")
         else:
             st.write("Não há usuários cadastrados no arquivo.")
 
         st.write("---")
-        st.write("### Cadastrar Novo Usuário")
-        novo_login = st.text_input("Novo login")
-        nova_senha = st.text_input("Nova senha", type="password")
-        admin_flag = st.checkbox("Usuário é administrador?")
+        st.write("### Cadastrar/Atualizar Usuário")
+        novo_login = st.text_input("Login do Usuário", key="novo_login")
+        nova_senha = st.text_input("Senha do Usuário", type="password", key="nova_senha")
+        admin_flag = st.checkbox("Usuário é administrador?", key="admin_flag")
+        nome_vet = st.text_input("Nome do(a) Veterinário(a)", key="nome_vet")
+        crmv = st.text_input("CRMV (somente números ou ex: 12345)", key="crmv")
         if st.button("Cadastrar/Atualizar Usuário"):
-            if novo_login and nova_senha:
-                cadastrar_usuario(novo_login, nova_senha, admin_flag)
+            if novo_login and nova_senha and nome_vet and crmv:
+                cadastrar_usuario(novo_login, nova_senha, nome_vet=nome_vet, crmv=crmv, is_admin=admin_flag)
                 st.success(f"Usuário '{novo_login}' cadastrado/atualizado com sucesso!")
                 st.experimental_rerun()
             else:
-                st.warning("É necessário preencher login e senha.")
+                st.warning("É necessário preencher login, senha, nome do(a) veterinário(a) e CRMV.")
 
         st.write("---")
         st.write("### Remover Usuário")
-        usuario_remover = st.text_input("Login do usuário para remover:")
+        usuario_remover = st.text_input("Login do usuário para remover:", key="usuario_remover")
         if st.button("Remover"):
             if usuario_remover:
                 remover_usuario(usuario_remover)
@@ -519,29 +509,15 @@ def main():
 
     def tela_perfil():
         st.subheader("Meu Perfil")
-        st.write("Aqui você pode configurar os dados de Veterinário(a), imagens etc.")
+        st.write("Aqui você pode configurar apenas as imagens de fundo e assinatura.")
 
         # Pasta do usuário
         user_folder = os.path.join(USER_FILES_DIR, usuario_atual["login"])
         if not os.path.exists(user_folder):
             os.makedirs(user_folder)
 
-        # Nome Veterinário(a) e CRMV
-        nome_vet_atual = usuario_atual.get("nome_vet") or ""
-        crmv_atual = usuario_atual.get("crmv") or ""
-
-        nome_vet_input = st.text_input("Nome do(a) Veterinário(a):", value=nome_vet_atual)
-        crmv_input = st.text_input("CRMV (somente números ou ex: 12345):", value=crmv_atual)
-        if st.button("Salvar Dados Veterinário"):
-            atualizar_dados_veterinario(usuario_atual["login"], nome_vet_input, crmv_input)
-            st.success("Dados de Veterinário(a) atualizados!")
-            # Atualiza session_state
-            usuario_atual["nome_vet"] = nome_vet_input
-            usuario_atual["crmv"] = crmv_input
-
-        st.write("---")
         # Upload de imagem de fundo
-        fundo_file = st.file_uploader("Upload da Imagem de Fundo (opcional)", type=["png", "jpg", "jpeg"])
+        fundo_file = st.file_uploader("Upload da Imagem de Fundo (opcional)", type=["png", "jpg", "jpeg"], key="fundo_file")
         if fundo_file is not None:
             fundo_path = os.path.join(user_folder, "fundo_" + fundo_file.name)
             with open(fundo_path, "wb") as f:
@@ -551,7 +527,7 @@ def main():
             usuario_atual["fundo"] = fundo_path
 
         # Upload de assinatura
-        assinatura_file = st.file_uploader("Upload da Assinatura (opcional)", type=["png", "jpg", "jpeg"])
+        assinatura_file = st.file_uploader("Upload da Assinatura (opcional)", type=["png", "jpg", "jpeg"], key="assinatura_file")
         if assinatura_file is not None:
             assinatura_path = os.path.join(user_folder, "assinatura_" + assinatura_file.name)
             with open(assinatura_path, "wb") as f:
@@ -561,10 +537,10 @@ def main():
             usuario_atual["assinatura"] = assinatura_path
 
         st.write("---")
-        st.write("**Imagem de fundo atual**:", usuario_atual.get("fundo"))
-        st.write("**Assinatura atual**:", usuario_atual.get("assinatura"))
-        st.write("**Nome Vet:**", usuario_atual.get("nome_vet"))
-        st.write("**CRMV:**", usuario_atual.get("crmv"))
+        st.write("**Imagem de fundo atual**:", os.path.basename(usuario_atual.get("fundo")) if usuario_atual.get("fundo") else "Nenhuma")
+        st.write("**Assinatura atual**:", os.path.basename(usuario_atual.get("assinatura")) if usuario_atual.get("assinatura") else "Nenhuma")
+        st.write("**Nome Vet:**", usuario_atual.get("nome_vet") or "Não definido")
+        st.write("**CRMV:**", usuario_atual.get("crmv") or "Não definido")
 
     def tela_receita():
         st.subheader("Gerar Receituário")
