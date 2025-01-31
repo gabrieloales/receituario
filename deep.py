@@ -344,9 +344,10 @@ def gerar_pdf_receita(
     c.setStrokeColor(colors.black)
 
     # Rodapé: Assinatura, Data, Nome, CRMV
-    # Posição 2 cm à esquerda do centro
-    x_centro_rodape = (largura / 2) - 2 * cm
-    y_rodape = 6 * cm
+    # Posição 4 cm à esquerda do centro (shifted 2 cm mais à esquerda)
+    x_centro_rodape = (largura / 2) - 4 * cm  # Original: -2 cm, agora -4 cm
+    # Posição 4 cm mais baixo (2 cm mais próximo da assinatura)
+    y_rodape = 4 * cm  # Original: 6 cm, agora 4 cm
 
     # Desenha a imagem da assinatura (se existir)
     assinatura_width = 4 * cm
