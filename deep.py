@@ -2,7 +2,6 @@ import os
 import json
 import datetime
 import re
-import base64
 import requests
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
@@ -16,7 +15,7 @@ import streamlit as st
 USERS_FILE = "users.json"       # Arquivo para armazenar usuários
 USER_FILES_DIR = "user_files"   # Pasta base para armazenar arquivos de cada usuário
 
-# Administrador "principal" hard-coded
+# Administrador "principal" hard-coded (opcional).
 ADMIN_LOGIN = "larsen"
 ADMIN_SENHA = "31415962Isa@"
 
@@ -24,6 +23,7 @@ ADMIN_SENHA = "31415962Isa@"
 # ----------------------------------------------
 # FUNÇÕES DE SUPORTE A USUÁRIOS
 # ----------------------------------------------
+
 def carregar_usuarios():
     """Carrega o dicionário de usuários a partir de um arquivo JSON."""
     if not os.path.exists(USERS_FILE):
@@ -66,6 +66,7 @@ def verificar_login(login, senha):
             "is_admin": user_data.get("is_admin", False),
             "fundo": user_data.get("background_image"),
             "assinatura": user_data.get("signature_image"),
+            # Novos campos no perfil
             "nome_vet": user_data.get("nome_vet"),
             "crmv": user_data.get("crmv")
         }
@@ -73,7 +74,7 @@ def verificar_login(login, senha):
 
 
 def cadastrar_usuario(novo_login, nova_senha, is_admin=False):
-    """Cadastra/atualiza um usuário no users.json."""
+    """Cadastra um novo usuário (ou atualiza se já existir)."""
     usuarios = carregar_usuarios()
     if novo_login not in usuarios:
         usuarios[novo_login] = {}
@@ -93,12 +94,12 @@ def cadastrar_usuario(novo_login, nova_senha, is_admin=False):
 
 
 def remover_usuario(login):
-    """Remove um usuário do arquivo JSON (e pasta local, se existir)."""
+    """Remove um usuário do arquivo JSON."""
     usuarios = carregar_usuarios()
     if login in usuarios:
         del usuarios[login]
         salvar_usuarios(usuarios)
-        # Remove pasta local de arquivos do usuário
+        # Opcional: remover pasta local de arquivos do usuário
         user_folder = os.path.join(USER_FILES_DIR, login)
         if os.path.exists(user_folder):
             import shutil
@@ -137,6 +138,7 @@ def atualizar_dados_veterinario(login, nome_vet, crmv):
 # ----------------------------------------------
 # FUNÇÕES DE APOIO GERAIS
 # ----------------------------------------------
+
 def formatar_cpf(cpf_str: str) -> str:
     digits = re.sub(r'\D', '', cpf_str)
     if len(digits) == 11:
@@ -145,21 +147,16 @@ def formatar_cpf(cpf_str: str) -> str:
 
 
 def buscar_endereco_via_cep(cep: str) -> dict:
-    """
-    Tenta buscar o endereço via CEP.
-    - Remove tudo que não seja dígito (hífens, etc).
-    - Se tiver menos de 8 dígitos, retorna {} pois é inválido.
-    - Se 'erro' em dados, retorna {}.
-    """
+    """Tenta buscar o endereço via CEP. Se não achar, retorna dicionário vazio."""
     cep_limpo = re.sub(r'\D', '', cep)
-    if len(cep_limpo) < 8:
-        # CEP inválido (muito curto)
+    if not cep_limpo:
         return {}
     try:
         url = f"https://viacep.com.br/ws/{cep_limpo}/json/"
         r = requests.get(url, timeout=10)
         r.raise_for_status()
         dados = r.json()
+        # Se "erro" em dados, retorna vazio
         if "erro" in dados:
             return {}
         return {
@@ -173,35 +170,11 @@ def buscar_endereco_via_cep(cep: str) -> dict:
 
 
 # ----------------------------------------------
-# DOWNLOAD AUTOMÁTICO (Gera link + auto-click)
-# ----------------------------------------------
-def gerar_download_automatico(filepath_pdf):
-    """
-    Lê o PDF, converte em base64 e gera um link HTML que dispara o download
-    automaticamente via JavaScript.
-    """
-    with open(filepath_pdf, "rb") as f:
-        pdf_data = f.read()
-    b64 = base64.b64encode(pdf_data).decode('utf-8')
-    filename = os.path.basename(filepath_pdf)
-
-    # Link com JavaScript para "auto-click"
-    download_link = f"""
-    <html>
-    <body>
-    <a id="downloadLink" href="data:application/pdf;base64,{b64}" download="{filename}"></a>
-    <script>
-    document.getElementById('downloadLink').click();
-    </script>
-    </body>
-    </html>
-    """
-    return download_link
-
-
-# ----------------------------------------------
 # FUNÇÃO PRINCIPAL PARA GERAR O PDF
+# (Com posição da assinatura 2 cm à esquerda,
+#  Bezier e uso de M. V. {nome_vet} e CRMV-PR: {crmv})
 # ----------------------------------------------
+
 def gerar_pdf_receita(
     nome_pdf="receita_veterinaria.pdf",
     tipo_farmacia="FARMÁCIA VETERINÁRIA",
@@ -228,9 +201,10 @@ def gerar_pdf_receita(
 ):
     """
     Gera o PDF da receita, incluindo:
-      - Artefato Blezie (curva)
-      - Assinatura deslocada 1cm adicional para esquerda e 2cm a mais para cima
-      - M. V. e CRMV aproximados (0.3cm de espaçamento)
+      - Pergunta de tipo de farmácia.
+      - Bezier (artefato Blezie) para impedir escrita posterior.
+      - Assinatura 2cm à esquerda do centro.
+      - M. V. {nome_vet} e CRMV-PR: {crmv}.
     """
     if lista_medicamentos is None:
         lista_medicamentos = []
@@ -351,9 +325,9 @@ def gerar_pdf_receita(
     c.setStrokeColor(colors.black)
 
     # Rodapé: Assinatura, Data, Nome, CRMV
-    # Sobe 2cm (de 6 -> 8) e 1cm adicional à esquerda (de -2 -> -3)
-    x_centro_rodape = (largura / 2) - 3 * cm
-    y_rodape = 8 * cm
+    # Posição 2 cm à esquerda do centro
+    x_centro_rodape = (largura / 2) - 2 * cm
+    y_rodape = 6 * cm
 
     # Desenha a imagem da assinatura (se existir)
     assinatura_width = 4 * cm
@@ -373,24 +347,21 @@ def gerar_pdf_receita(
             st.warning(f"[Aviso] Não foi possível inserir a assinatura: {e}")
 
     # Ajusta y após colocar a imagem
-    y_rodape -= (assinatura_height + 0.3 * cm)  # reduz de 0.5 para 0.3 cm
+    y_rodape -= (assinatura_height + 0.5 * cm)
 
     c.setFont(font_value, font_footer)
     # Data
     c.drawCentredString(x_centro_rodape, y_rodape, f"CURITIBA, PR, {data_receita}")
-    y_rodape -= 0.3 * cm  # 0.3 cm entre data e M.V.
-
+    y_rodape -= 0.5 * cm
     # Nome veterinário
     c.drawCentredString(x_centro_rodape, y_rodape, f"M. V. {nome_vet_up}")
-    y_rodape -= 0.3 * cm  # 0.3 cm entre M.V. e CRMV
-
+    y_rodape -= 0.5 * cm
     # CRMV
     c.drawCentredString(x_centro_rodape, y_rodape, f"CRMV-PR: {crmv}")
 
     c.showPage()
     c.save()
     return nome_pdf
-
 
 # ----------------------------------------------
 # INTERFACE PRINCIPAL (STREAMLIT)
@@ -401,44 +372,50 @@ def main():
     # Verifica se o usuário está autenticado
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
+
     if "usuario_logado" not in st.session_state:
         st.session_state.usuario_logado = None
 
+    # ----------------------------------
     # TELA DE LOGIN
+    # ----------------------------------
     if not st.session_state.autenticado:
         st.subheader("Login")
         login = st.text_input("Login:")
         senha = st.text_input("Senha:", type="password")
-
-        # Assim que clicar em "Entrar", tenta logar de imediato
         if st.button("Entrar"):
             user_info = verificar_login(login, senha)
             if user_info:
                 st.session_state.autenticado = True
                 st.session_state.usuario_logado = user_info
-                st.experimental_rerun()  # Força recarregar a página já logado
+                st.success("Login bem-sucedido!")
             else:
                 st.error("Login ou senha incorretos.")
-        return  # Se não estiver autenticado, não mostra o resto
+        return  # Impede o acesso ao restante do aplicativo se não estiver autenticado
 
     # Se chegou aqui, está autenticado
     usuario_atual = st.session_state.usuario_logado
     st.write(f"Usuário logado: **{usuario_atual['login']}**")
 
+    # ----------------------------------
     # BOTÃO PARA SAIR
+    # ----------------------------------
     if st.button("Sair"):
         st.session_state.autenticado = False
         st.session_state.usuario_logado = None
         st.experimental_rerun()
 
+    # ----------------------------------
     # MENU LATERAL
+    # ----------------------------------
     menu = ["Gerar Receita", "Meu Perfil"]
     if usuario_atual["is_admin"]:
         menu.append("Administração de Usuários")
+
     escolha = st.sidebar.selectbox("Menu", menu)
 
     # ----------------------------------
-    # TELAS
+    # FUNÇÕES DE TELA
     # ----------------------------------
     def tela_admin():
         st.subheader("Administração de Usuários")
@@ -449,7 +426,7 @@ def main():
             for u, data in usuarios.items():
                 st.write(f"- **Login**: {u} | Admin: {data.get('is_admin', False)}")
         else:
-            st.write("Não há usuários cadastrados.")
+            st.write("Não há usuários cadastrados no arquivo.")
 
         st.write("---")
         st.write("### Cadastrar Novo Usuário")
@@ -496,7 +473,6 @@ def main():
             # Atualiza session_state
             usuario_atual["nome_vet"] = nome_vet_input
             usuario_atual["crmv"] = crmv_input
-            st.experimental_rerun()
 
         st.write("---")
         # Upload de imagem de fundo
@@ -506,9 +482,8 @@ def main():
             with open(fundo_path, "wb") as f:
                 f.write(fundo_file.getvalue())
             atualizar_imagem_usuario(usuario_atual["login"], fundo_path, tipo="fundo")
-            st.success("Imagem de fundo atualizada!")
+            st.success("Imagem de fundo atualizada com sucesso!")
             usuario_atual["fundo"] = fundo_path
-            st.experimental_rerun()
 
         # Upload de assinatura
         assinatura_file = st.file_uploader("Upload da Assinatura (opcional)", type=["png", "jpg", "jpeg"])
@@ -517,9 +492,8 @@ def main():
             with open(assinatura_path, "wb") as f:
                 f.write(assinatura_file.getvalue())
             atualizar_imagem_usuario(usuario_atual["login"], assinatura_path, tipo="assinatura")
-            st.success("Assinatura atualizada!")
+            st.success("Assinatura atualizada com sucesso!")
             usuario_atual["assinatura"] = assinatura_path
-            st.experimental_rerun()
 
         st.write("---")
         st.write("**Imagem de fundo atual**:", usuario_atual.get("fundo"))
@@ -533,6 +507,9 @@ def main():
         # Inicializa a lista de medicamentos no session_state
         if "lista_medicamentos" not in st.session_state:
             st.session_state.lista_medicamentos = []
+        # Caso queira limpar sempre, poderíamos fazer:
+        # else:
+        #     st.session_state.lista_medicamentos = []
 
         # Escolha do Tipo de Farmácia
         opcoes_farmacia = [
@@ -541,11 +518,12 @@ def main():
             "FARMÁCIA DE MANIPULAÇÃO - VETERINÁRIA",
             "FARMÁCIA DE MANIPULAÇÃO - HUMANO"
         ]
-        tipo_farmacia = st.selectbox("Tipo de Farmácia:", opcoes_farmacia)
+        tipo_farmacia = st.selectbox("Selecione o tipo de Farmácia:", opcoes_farmacia)
 
-        # Medicamento Controlado?
+        # Pergunta se é medicamento controlado
         eh_controlado = st.radio("Medicamento Controlado?", ("Não", "Sim"))
 
+        # Se for controlado, RG e CEP/Endereço são necessários
         rg = ""
         endereco_formatado = ""
 
@@ -553,42 +531,35 @@ def main():
             rg = st.text_input("RG do Tutor(a):")
 
             # CEP - busca automática
+            # Guardamos valores intermediários no session_state para "auto-fill"
             if "cep_tutor" not in st.session_state:
                 st.session_state.cep_tutor = ""
             if "end_busca" not in st.session_state:
-                st.session_state.end_busca = {}
+                st.session_state.end_busca = {}  # dicionário com logradouro, bairro, etc.
 
             cep_digitado = st.text_input("CEP do Tutor(a):", value=st.session_state.cep_tutor)
 
-            # Se CEP mudar, faz a busca
+            # Se o CEP mudou, tentamos buscar novamente
             if cep_digitado != st.session_state.cep_tutor:
                 st.session_state.cep_tutor = cep_digitado
                 if cep_digitado.strip():
                     dados_end = buscar_endereco_via_cep(cep_digitado)
                     st.session_state.end_busca = dados_end
-                else:
-                    st.session_state.end_busca = {}
-                st.experimental_rerun()
+                    st.experimental_rerun()  # força recarregar
 
             dados_cep = st.session_state.end_busca if st.session_state.end_busca else {}
             if dados_cep:
+                # Exibe o que encontrou
                 logradouro = dados_cep.get("logradouro", "")
                 bairro = dados_cep.get("bairro", "")
                 cidade = dados_cep.get("localidade", "")
                 uf = dados_cep.get("uf", "")
-                if logradouro or bairro or cidade or uf:
-                    st.success(f"Endereço encontrado: {logradouro}, {bairro}, {cidade}-{uf}")
-                else:
-                    st.warning("CEP não encontrado. Preencha manualmente abaixo.")
-                    logradouro = st.text_input("Rua:", value="")
-                    bairro = st.text_input("Bairro:", value="")
-                    cidade = st.text_input("Cidade:", value="")
-                    uf = st.text_input("UF:", value="")
+                st.success(f"Endereço encontrado: {logradouro}, {bairro}, {cidade}-{uf}")
             else:
-                # Vazio ou CEP inválido
+                # Se não encontrou nada e o usuário digitou um CEP
                 if st.session_state.cep_tutor.strip():
-                    st.warning("CEP não encontrado ou inválido. Preencha manualmente.")
-                logradouro = st.text_input("Rua:", value="")
+                    st.warning("CEP não encontrado. Preencha manualmente.")
+                logradouro = st.text_input("Logradouro (Rua):", value="")
                 bairro = st.text_input("Bairro:", value="")
                 cidade = st.text_input("Cidade:", value="")
                 uf = st.text_input("UF:", value="")
@@ -596,8 +567,8 @@ def main():
             numero = st.text_input("Número:")
             complemento = st.text_input("Complemento (opcional):")
 
-            # Monta endereço
-            if (logradouro or bairro or cidade or uf):
+            # Montamos o endereço
+            if logradouro or bairro or cidade or uf:
                 endereco_formatado = f"{logradouro}, {numero}, {bairro}, {cidade}-{uf}"
                 if complemento:
                     endereco_formatado += f" (Compl.: {complemento})"
@@ -641,19 +612,19 @@ def main():
         st.write("---")
         instrucoes_uso = st.text_area("Digite as instruções de uso:")
 
-        # Botão Gerar Receita
+        # Gerar Receita
         if st.button("Gerar Receita"):
-            # Carrega dados do perfil
+            # Preparar dados para o PDF
             imagem_fundo = usuario_atual.get("fundo")
             imagem_assinatura = usuario_atual.get("assinatura")
             nome_vet = usuario_atual.get("nome_vet") or ""
             crmv = usuario_atual.get("crmv") or ""
 
-            # Nome do PDF
+            # Nome do PDF (pode personalizar)
             nome_pdf = f"{paciente.replace(' ', '_')}_receita.pdf"
 
-            # Gera PDF local
-            pdf_path = gerar_pdf_receita(
+            # Gera PDF
+            nome_pdf = gerar_pdf_receita(
                 nome_pdf=nome_pdf,
                 tipo_farmacia=tipo_farmacia,
                 paciente=paciente,
@@ -669,18 +640,18 @@ def main():
                 chip=chip,
                 lista_medicamentos=st.session_state.lista_medicamentos,
                 instrucoes_uso=instrucoes_uso,
-                nome_vet=nome_vet,
-                crmv=crmv,
                 imagem_fundo=imagem_fundo,
-                imagem_assinatura=imagem_assinatura
+                imagem_assinatura=imagem_assinatura,
+                nome_vet=nome_vet,
+                crmv=crmv
             )
-
-            # Cria link de download automático
-            html_download = gerar_download_automatico(pdf_path)
-            st.markdown(html_download, unsafe_allow_html=True)
-
-            # Opcional: limpar a lista de medicamentos
-            # st.session_state.lista_medicamentos = []
+            with open(nome_pdf, "rb") as f:
+                st.download_button(
+                    label="Baixar Receita",
+                    data=f,
+                    file_name=nome_pdf,
+                    mime="application/pdf"
+                )
 
     # ----------------------------------
     # NAVEGAÇÃO ENTRE AS TELAS
