@@ -168,8 +168,7 @@ def buscar_endereco_via_cep(cep: str) -> dict:
 
 # ----------------------------------------------
 # FUNÇÃO PRINCIPAL PARA GERAR O PDF
-# (Com posição da assinatura 2 cm à esquerda,
-#  Bezier e uso de M. V. {nome_vet} e CRMV-PR: {crmv})
+# (Com posição da assinatura ajustada para ficar logo acima dos campos)
 # ----------------------------------------------
 
 def gerar_pdf_receita(
@@ -200,7 +199,7 @@ def gerar_pdf_receita(
     Gera o PDF da receita, incluindo:
       - Pergunta de tipo de farmácia.
       - Bezier (artefato Blezie) para impedir escrita posterior.
-      - Assinatura 2cm à esquerda do centro.
+      - Assinatura ajustada para ficar logo acima dos campos "Data", "M. V." e "CRMV".
       - M. V. {nome_vet} e CRMV-PR: {crmv}.
     """
     if lista_medicamentos is None:
@@ -346,8 +345,8 @@ def gerar_pdf_receita(
     # Rodapé: Assinatura, Data, Nome, CRMV
     # Posição 4 cm à esquerda do centro (shifted 2 cm mais à esquerda)
     x_centro_rodape = (largura / 2) - 4 * cm  # Mantém-se 2 cm mais à esquerda
-    # Posição 6 cm no rodapé, movendo 2 cm para cima
-    y_rodape = 6 * cm  # Anteriormente 6 cm, agora será ajustado para 8 cm para descer a assinatura 2 cm
+    # Posição inicial no rodapé
+    y_rodape = 6 * cm  # Anteriormente 6 cm
 
     # **Ajuste na posição da assinatura:**
     # Mover a assinatura 2 cm para baixo, aumentando y_rodape em 2 cm
@@ -371,7 +370,7 @@ def gerar_pdf_receita(
             st.warning(f"[Aviso] Não foi possível inserir a assinatura: {e}")
 
     # Ajusta y após colocar a imagem
-    y_rodape -= (assinatura_height + 0.5 * cm)
+    y_rodape -= (assinatura_height + 0.2 * cm)  # Reduziu de 0.5 cm para 0.2 cm
 
     c.setFont(font_value, font_footer)
     # Data
@@ -747,9 +746,9 @@ def main():
                     mime="application/pdf"
                 )
 
-    # ----------------------------------
-    # NAVEGAÇÃO ENTRE AS TELAS
-    # ----------------------------------
+# ----------------------------------
+# NAVEGAÇÃO ENTRE AS TELAS
+# ----------------------------------
     if escolha == "Gerar Receita":
         tela_receita()
     elif escolha == "Meu Perfil":
