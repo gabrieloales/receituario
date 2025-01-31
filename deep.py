@@ -171,9 +171,8 @@ def buscar_endereco_via_cep(cep: str) -> dict:
 
 # ----------------------------------------------
 # FUNÇÃO PRINCIPAL PARA GERAR O PDF
-# (Com posição customizada da assinatura,
-#  Bezier/artefato "Blezie" e uso de
-#  nome_vet/CRMV.)
+# (Com posição da assinatura 2 cm à esquerda,
+#  Bezier e uso de M. V. {nome_vet} e CRMV-PR: {crmv})
 # ----------------------------------------------
 
 def gerar_pdf_receita(
@@ -202,9 +201,10 @@ def gerar_pdf_receita(
 ):
     """
     Gera o PDF da receita, incluindo:
-      - Bezier/linha para prevenir escrita posterior.
-      - Assinatura em posição customizada.
-      - Uso de M. V. {nome_vet} e CRMV-PR: {crmv}.
+      - Pergunta de tipo de farmácia.
+      - Bezier (artefato Blezie) para impedir escrita posterior.
+      - Assinatura 2cm à esquerda do centro.
+      - M. V. {nome_vet} e CRMV-PR: {crmv}.
     """
     if lista_medicamentos is None:
         lista_medicamentos = []
@@ -216,8 +216,6 @@ def gerar_pdf_receita(
         nome_vet = "NOME NÃO DEFINIDO"
     if not crmv:
         crmv = "00000"
-
-    # Normaliza para uppercase no final da assinatura
     nome_vet_up = nome_vet.upper()
 
     largura, altura = A4
@@ -295,30 +293,13 @@ def gerar_pdf_receita(
         c.setFont(font_label, font_label_size)
         y_right -= 0.7 * cm
 
-    # Inicia lista de medicamentos
+    # Lista de Medicamentos
     y_med = min(y_left, y_right) - 1.2 * cm
     c.setFont(font_label, font_med_title)
-
-    # Linha horizontal antes dos medicamentos (opcional)
-    # c.line(margem_esquerda, y_med, margem_esquerda + largura_util, y_med)
-    # y_med -= 0.5 * cm
-
     for i, med in enumerate(lista_medicamentos, start=1):
         texto_med = f"{i}) QTD: {med.get('quantidade', '').upper()} - MEDICAMENTO: {med.get('nome', '').upper()}"
         c.drawString(margem_esquerda, y_med, texto_med)
         y_med -= 0.8 * cm
-
-        # Se quiser adicionar "concentração", etc. - Exemplo:
-        # conc = med.get("concentracao", "")
-        # if conc:
-        #     c.setFont(font_label, font_med_title)
-        #     label_conc = "CONCENTRAÇÃO: "
-        #     c.drawString(margem_esquerda + 1*cm, y_med, label_conc)
-        #     offset_conc = c.stringWidth(label_conc, font_label, font_med_title)
-        #     c.setFont(font_value, font_med_title)
-        #     c.drawString(margem_esquerda + 1*cm + offset_conc, y_med, conc)
-        #     y_med -= 0.8 * cm
-        # c.setFont(font_label, font_med_title)
 
     # Instruções de Uso
     y_inst = y_med - 1.5 * cm
@@ -344,8 +325,8 @@ def gerar_pdf_receita(
     c.setStrokeColor(colors.black)
 
     # Rodapé: Assinatura, Data, Nome, CRMV
-    # Ajuste de posição/offset
-    x_centro_rodape = largura / 2
+    # Posição 2 cm à esquerda do centro
+    x_centro_rodape = (largura / 2) - 2 * cm
     y_rodape = 6 * cm
 
     # Desenha a imagem da assinatura (se existir)
@@ -368,15 +349,13 @@ def gerar_pdf_receita(
     # Ajusta y após colocar a imagem
     y_rodape -= (assinatura_height + 0.5 * cm)
 
-    # Data
     c.setFont(font_value, font_footer)
+    # Data
     c.drawCentredString(x_centro_rodape, y_rodape, f"CURITIBA, PR, {data_receita}")
     y_rodape -= 0.5 * cm
-
     # Nome veterinário
     c.drawCentredString(x_centro_rodape, y_rodape, f"M. V. {nome_vet_up}")
     y_rodape -= 0.5 * cm
-
     # CRMV
     c.drawCentredString(x_centro_rodape, y_rodape, f"CRMV-PR: {crmv}")
 
@@ -528,65 +507,76 @@ def main():
         # Inicializa a lista de medicamentos no session_state
         if "lista_medicamentos" not in st.session_state:
             st.session_state.lista_medicamentos = []
-        else:
-            # Se quiser limpar a cada vez que entra na tela, descomente:
-            # st.session_state.lista_medicamentos = []
-            pass
+        # Caso queira limpar sempre, poderíamos fazer:
+        # else:
+        #     st.session_state.lista_medicamentos = []
+
+        # Escolha do Tipo de Farmácia
+        opcoes_farmacia = [
+            "FARMÁCIA VETERINÁRIA",
+            "FARMÁCIA HUMANA",
+            "FARMÁCIA DE MANIPULAÇÃO - VETERINÁRIA",
+            "FARMÁCIA DE MANIPULAÇÃO - HUMANO"
+        ]
+        tipo_farmacia = st.selectbox("Selecione o tipo de Farmácia:", opcoes_farmacia)
 
         # Pergunta se é medicamento controlado
         eh_controlado = st.radio("Medicamento Controlado?", ("Não", "Sim"))
+
+        # Se for controlado, RG e CEP/Endereço são necessários
+        rg = ""
+        endereco_formatado = ""
+
         if eh_controlado == "Sim":
-            # RG
             rg = st.text_input("RG do Tutor(a):")
-            # CEP e Endereço
-            cep = st.text_input("CEP do Tutor(a):")
-            endereco_formatado = ""
-            if cep:
-                if st.button("Buscar Endereço"):
-                    dados_end = buscar_endereco_via_cep(cep)
-                    if not dados_end:
-                        st.warning("CEP não encontrado. Preencha manualmente abaixo.")
-                    else:
-                        # Monta string
-                        rua = dados_end.get("logradouro", "")
-                        bairro = dados_end.get("bairro", "")
-                        cidade = dados_end.get("localidade", "")
-                        uf = dados_end.get("uf", "")
-                        numero = st.text_input("Número:")
-                        complemento = st.text_input("Complemento (opcional):")
-                        endereco_formatado = f"{rua}, {numero}, {bairro}, {cidade}-{uf}"
-                        if complemento:
-                            endereco_formatado += f" (Compl.: {complemento})"
 
+            # CEP - busca automática
+            # Guardamos valores intermediários no session_state para "auto-fill"
+            if "cep_tutor" not in st.session_state:
+                st.session_state.cep_tutor = ""
+            if "end_busca" not in st.session_state:
+                st.session_state.end_busca = {}  # dicionário com logradouro, bairro, etc.
+
+            cep_digitado = st.text_input("CEP do Tutor(a):", value=st.session_state.cep_tutor)
+
+            # Se o CEP mudou, tentamos buscar novamente
+            if cep_digitado != st.session_state.cep_tutor:
+                st.session_state.cep_tutor = cep_digitado
+                if cep_digitado.strip():
+                    dados_end = buscar_endereco_via_cep(cep_digitado)
+                    st.session_state.end_busca = dados_end
+                    st.experimental_rerun()  # força recarregar
+
+            dados_cep = st.session_state.end_busca if st.session_state.end_busca else {}
+            if dados_cep:
+                # Exibe o que encontrou
+                logradouro = dados_cep.get("logradouro", "")
+                bairro = dados_cep.get("bairro", "")
+                cidade = dados_cep.get("localidade", "")
+                uf = dados_cep.get("uf", "")
+                st.success(f"Endereço encontrado: {logradouro}, {bairro}, {cidade}-{uf}")
             else:
-                # Caso não tenha cep, pode preencher manualmente
-                st.write("Preencha o endereço manualmente se desejar.")
-            # Se usuário quer preencher manual:
-            manual = st.checkbox("Preencher Endereço Manualmente?")
-            if manual:
-                rua_m = st.text_input("Rua:")
-                num_m = st.text_input("Número:")
-                bairro_m = st.text_input("Bairro:")
-                cid_m = st.text_input("Cidade:")
-                uf_m = st.text_input("UF:")
-                compl_m = st.text_input("Complemento (opcional):")
-                cep_m = st.text_input("CEP (opcional):")
-                if st.button("Montar Endereço Manual"):
-                    endereco_formatado = f"{rua_m}, {num_m}, {bairro_m}, {cid_m}-{uf_m}"
-                    if compl_m:
-                        endereco_formatado += f" (Compl.: {compl_m})"
-                    if cep_m:
-                        endereco_formatado += f" - CEP: {cep_m}"
-            # Salvar RG e endereço no st.session_state para uso no PDF
-            st.session_state.rg = rg
-            st.session_state.endereco = endereco_formatado
-        else:
-            # Se não for controlado, RG e endereço ficam vazios
-            st.session_state.rg = ""
-            st.session_state.endereco = ""
+                # Se não encontrou nada e o usuário digitou um CEP
+                if st.session_state.cep_tutor.strip():
+                    st.warning("CEP não encontrado. Preencha manualmente.")
+                logradouro = st.text_input("Logradouro (Rua):", value="")
+                bairro = st.text_input("Bairro:", value="")
+                cidade = st.text_input("Cidade:", value="")
+                uf = st.text_input("UF:", value="")
 
-        st.write("---")
+            numero = st.text_input("Número:")
+            complemento = st.text_input("Complemento (opcional):")
+
+            # Montamos o endereço
+            if logradouro or bairro or cidade or uf:
+                endereco_formatado = f"{logradouro}, {numero}, {bairro}, {cidade}-{uf}"
+                if complemento:
+                    endereco_formatado += f" (Compl.: {complemento})"
+                if st.session_state.cep_tutor:
+                    endereco_formatado += f" - CEP: {st.session_state.cep_tutor}"
+
         # Dados do Paciente
+        st.write("---")
         paciente = st.text_input("Nome do Paciente:")
         especie_raca = st.text_input("Espécie - Raça:")
         pelagem = st.text_input("Pelagem:")
@@ -595,13 +585,13 @@ def main():
         sexo = st.radio("Sexo:", ("Macho", "Fêmea"))
         chip = st.text_input("Número do Chip (se houver):")
 
-        st.write("---")
         # Dados do Tutor
+        st.write("---")
         tutor = st.text_input("Nome do Tutor(a):")
         cpf = st.text_input("CPF do Tutor(a):")
 
-        st.write("---")
         # Medicamentos
+        st.write("---")
         qtd_med = st.text_input("Quantidade do Medicamento:")
         nome_med = st.text_input("Nome do Medicamento:")
         if st.button("Adicionar Medicamento"):
@@ -618,11 +608,11 @@ def main():
         for i, med in enumerate(st.session_state.lista_medicamentos, start=1):
             st.write(f"{i}) QTD: {med['quantidade']} - MEDICAMENTO: {med['nome']}")
 
-        st.write("---")
         # Instruções de Uso
+        st.write("---")
         instrucoes_uso = st.text_area("Digite as instruções de uso:")
 
-        # Botão Gerar
+        # Gerar Receita
         if st.button("Gerar Receita"):
             # Preparar dados para o PDF
             imagem_fundo = usuario_atual.get("fundo")
@@ -630,13 +620,18 @@ def main():
             nome_vet = usuario_atual.get("nome_vet") or ""
             crmv = usuario_atual.get("crmv") or ""
 
+            # Nome do PDF (pode personalizar)
+            nome_pdf = f"{paciente.replace(' ', '_')}_receita.pdf"
+
             # Gera PDF
             nome_pdf = gerar_pdf_receita(
+                nome_pdf=nome_pdf,
+                tipo_farmacia=tipo_farmacia,
                 paciente=paciente,
                 tutor=tutor,
                 cpf=cpf,
-                rg=st.session_state.rg,
-                endereco_formatado=st.session_state.endereco,
+                rg=rg,
+                endereco_formatado=endereco_formatado,
                 especie_raca=especie_raca,
                 pelagem=pelagem,
                 peso=peso,
