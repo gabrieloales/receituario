@@ -6,118 +6,106 @@ import base64
 import requests
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm
+from reportlab.lib import colors
 import streamlit as st
 
-# ----------------------------------------------
-# CONSTANTES E CONFIGURAÇÕES
-# ----------------------------------------------
-USER_FILES_DIR = "user_files"   # Pasta base para armazenar arquivos de cada usuário
+# Configurações
+USERS_FILE = "users.json"
+USER_FILES_DIR = "user_files"
+ADMIN_LOGIN = "larsen"
+ADMIN_SENHA = "31415962Isa@"
 
-# ----------------------------------------------
-# FUNÇÃO PARA GERAR O PDF
-# ----------------------------------------------
-def gerar_pdf_receita(
-    nome_pdf,
-    paciente="",
-    tutor="",
-    cpf="",
-    lista_medicamentos=None,
-    instrucoes_uso="",
-    nome_vet=None,
-    crmv=None
-):
-    """
-    Gera um PDF de receita veterinária.
-    """
-    if lista_medicamentos is None:
-        lista_medicamentos = []
-    
+def carregar_usuarios():
+    if not os.path.exists(USERS_FILE):
+        return {}
+    with open(USERS_FILE, "r", encoding="utf-8") as f:
+        try:
+            return json.load(f)
+        except:
+            return {}
+
+def verificar_login(login, senha):
+    if login == ADMIN_LOGIN and senha == ADMIN_SENHA:
+        return {"login": login, "is_admin": True}
+    usuarios = carregar_usuarios()
+    user_data = usuarios.get(login)
+    if user_data and user_data.get("password") == senha:
+        return {"login": login, "is_admin": user_data.get("is_admin", False)}
+    return None
+
+def gerar_pdf_receita(nome_pdf, paciente, tutor, cpf, especie_raca, pelagem, peso, idade, sexo, chip, lista_medicamentos, instrucoes_uso, data_receita):
     largura, altura = A4
     c = canvas.Canvas(nome_pdf, pagesize=A4)
-    
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(100, altura - 100, "Receituário Veterinário")
-    c.setFont("Helvetica", 12)
-    c.drawString(100, altura - 130, f"Paciente: {paciente}")
-    c.drawString(100, altura - 150, f"Tutor: {tutor}")
-    c.drawString(100, altura - 170, f"CPF: {cpf}")
-    
-    y_meds = altura - 200
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(100, y_meds, "Medicamentos:")
-    c.setFont("Helvetica", 11)
-    y_meds -= 20
+    c.drawCentredString(largura / 2, altura - 2 * cm, "Receituário Veterinário")
+    c.setFont("Helvetica", 10)
+    c.drawString(2 * cm, altura - 4 * cm, f"Paciente: {paciente}")
+    c.drawString(2 * cm, altura - 5 * cm, f"Tutor: {tutor}")
+    c.drawString(2 * cm, altura - 6 * cm, f"CPF: {cpf}")
+    c.drawString(2 * cm, altura - 7 * cm, f"Espécie - Raça: {especie_raca}")
+    c.drawString(2 * cm, altura - 8 * cm, f"Pelagem: {pelagem}")
+    c.drawString(2 * cm, altura - 9 * cm, f"Peso: {peso}")
+    c.drawString(2 * cm, altura - 10 * cm, f"Idade: {idade}")
+    c.drawString(2 * cm, altura - 11 * cm, f"Sexo: {sexo}")
+    c.drawString(2 * cm, altura - 12 * cm, f"Chip: {chip}")
+    y = altura - 14 * cm
     for i, med in enumerate(lista_medicamentos, start=1):
-        c.drawString(100, y_meds, f"{i}) {med['quantidade']} - {med['nome']}")
-        y_meds -= 20
-    
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(100, y_meds - 20, "Instruções de Uso:")
-    c.setFont("Helvetica", 11)
-    y_meds -= 40
+        c.drawString(2 * cm, y, f"{i}) {med['quantidade']} - {med['nome']}")
+        y -= 1 * cm
+    c.drawString(2 * cm, y - 2 * cm, "Instruções de Uso:")
     for linha in instrucoes_uso.split("\n"):
-        c.drawString(100, y_meds, linha)
-        y_meds -= 20
-    
-    c.setFont("Helvetica", 11)
-    c.drawString(100, y_meds - 40, f"Veterinário(a): {nome_vet}")
-    c.drawString(100, y_meds - 60, f"CRMV: {crmv}")
-    
+        c.drawString(2 * cm, y - 3 * cm, linha)
+        y -= 0.7 * cm
     c.showPage()
     c.save()
-    return nome_pdf
 
-# ----------------------------------------------
-# STREAMLIT INTERFACE
-# ----------------------------------------------
 def main():
     st.title("Gerador de Receituário Veterinário")
-    
+    if "autenticado" not in st.session_state:
+        st.session_state.autenticado = False
+    if "usuario_logado" not in st.session_state:
+        st.session_state.usuario_logado = None
+    if not st.session_state.autenticado:
+        login = st.text_input("Login:")
+        senha = st.text_input("Senha:", type="password")
+        if st.button("Entrar"):
+            user_info = verificar_login(login, senha)
+            if user_info:
+                st.session_state.autenticado = True
+                st.session_state.usuario_logado = user_info
+                st.experimental_rerun()
+            else:
+                st.error("Login ou senha incorretos.")
+        return
+    if st.button("Sair", key="logout"):
+        st.session_state.autenticado = False
+        st.session_state.usuario_logado = None
+        st.experimental_rerun()
+    st.subheader("Gerar Receita")
     paciente = st.text_input("Nome do Paciente:")
-    tutor = st.text_input("Nome do Tutor(a):")
-    cpf = st.text_input("CPF do Tutor(a):")
-    
+    tutor = st.text_input("Nome do Tutor:")
+    cpf = st.text_input("CPF do Tutor:")
+    especie_raca = st.text_input("Espécie - Raça:")
+    pelagem = st.text_input("Pelagem:")
+    peso = st.text_input("Peso:")
+    idade = st.text_input("Idade:")
+    sexo = st.radio("Sexo:", ["Macho", "Fêmea"])
+    chip = st.text_input("Número do Chip:")
+    lista_medicamentos = []
     qtd_med = st.text_input("Quantidade do Medicamento:")
     nome_med = st.text_input("Nome do Medicamento:")
-    
-    if "lista_medicamentos" not in st.session_state:
-        st.session_state.lista_medicamentos = []
-    
     if st.button("Adicionar Medicamento"):
         if qtd_med and nome_med:
-            st.session_state.lista_medicamentos.append({"quantidade": qtd_med, "nome": nome_med})
+            lista_medicamentos.append({"quantidade": qtd_med, "nome": nome_med})
             st.success("Medicamento adicionado!")
-        else:
-            st.warning("Informe quantidade e nome do medicamento.")
-    
-    st.write("Medicamentos Adicionados:")
-    for i, med in enumerate(st.session_state.lista_medicamentos, start=1):
-        st.write(f"{i}) {med['quantidade']} - {med['nome']}")
-    
-    instrucoes_uso = st.text_area("Digite as instruções de uso:")
-    nome_vet = st.text_input("Nome do Veterinário(a):")
-    crmv = st.text_input("CRMV:")
-    
+    instrucoes_uso = st.text_area("Instruções de Uso:")
     if st.button("Gerar Receita"):
-        nome_arquivo = f"{paciente.replace(' ', '_')}-{cpf.replace('.', '').replace('-', '')}.pdf"
-        pdf_path = gerar_pdf_receita(
-            nome_pdf=nome_arquivo,
-            paciente=paciente,
-            tutor=tutor,
-            cpf=cpf,
-            lista_medicamentos=st.session_state.lista_medicamentos,
-            instrucoes_uso=instrucoes_uso,
-            nome_vet=nome_vet,
-            crmv=crmv
-        )
-        
-        with open(pdf_path, "rb") as f:
-            st.download_button(
-                label="Baixar Receita",
-                data=f,
-                file_name=nome_arquivo,
-                mime="application/pdf"
-            )
+        nome_pdf = "receita_veterinaria.pdf"
+        gerar_pdf_receita(nome_pdf, paciente, tutor, cpf, especie_raca, pelagem, peso, idade, sexo, chip, lista_medicamentos, instrucoes_uso, datetime.datetime.now().strftime("%d/%m/%Y"))
+        with open(nome_pdf, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
+        st.markdown(f'<a href="data:application/pdf;base64,{b64}" download="{nome_pdf}">Baixar Receita</a>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
