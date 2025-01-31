@@ -516,8 +516,33 @@ def tela_perfil():
 def tela_receita():
     st.subheader("Criar Receituário")
 
+    # Inicializa os valores do session_state para os campos, se ainda não existirem
     if "lista_medicamentos" not in st.session_state:
         st.session_state.lista_medicamentos = []
+    if "paciente" not in st.session_state:
+        st.session_state.paciente = ""
+    if "especie_raca" not in st.session_state:
+        st.session_state.especie_raca = ""
+    if "pelagem" not in st.session_state:
+        st.session_state.pelagem = ""
+    if "peso" not in st.session_state:
+        st.session_state.peso = ""
+    if "idade" not in st.session_state:
+        st.session_state.idade = ""
+    if "sexo" not in st.session_state:
+        st.session_state.sexo = "Macho"
+    if "chip" not in st.session_state:
+        st.session_state.chip = ""
+    if "tutor" not in st.session_state:
+        st.session_state.tutor = ""
+    if "cpf" not in st.session_state:
+        st.session_state.cpf = ""
+    if "instrucoes_uso" not in st.session_state:
+        st.session_state.instrucoes_uso = ""
+    if "cep_tutor" not in st.session_state:
+        st.session_state.cep_tutor = ""
+    if "end_busca" not in st.session_state:
+        st.session_state.end_busca = {}
 
     opcoes_farmacia = [
         "FARMÁCIA VETERINÁRIA",
@@ -533,7 +558,7 @@ def tela_receita():
     endereco_formatado = ""
 
     if eh_controlado == "Sim":
-        rg = st.text_input("RG do Tutor(a):")
+        rg = st.text_input("RG do Tutor(a):", key="rg")
 
         st.write("### Preenchimento do Endereço")
         modo_endereco = st.radio(
@@ -542,15 +567,11 @@ def tela_receita():
         )
 
         if modo_endereco == "Automático (via CEP)":
-            if "cep_tutor" not in st.session_state:
-                st.session_state.cep_tutor = ""
-            if "end_busca" not in st.session_state:
-                st.session_state.end_busca = {}
-
             cep_digitado = st.text_input(
                 "CEP do Tutor(a):",
                 value=st.session_state.cep_tutor,
-                help="Digite o CEP sem hífen, por exemplo: 12345678"
+                help="Digite o CEP sem hífen, por exemplo: 12345678",
+                key="cep_tutor_input"
             )
 
             if cep_digitado != st.session_state.cep_tutor:
@@ -571,8 +592,8 @@ def tela_receita():
                 bairro = dados_cep.get("bairro", "")
                 cidade = dados_cep.get("localidade", "")
                 uf = dados_cep.get("uf", "")
-                numero = st.text_input("Número:")
-                complemento = st.text_input("Complemento (opcional):")
+                numero = st.text_input("Número:", key="numero_cep")
+                complemento = st.text_input("Complemento (opcional):", key="complemento_cep")
                 endereco_formatado = f"{logradouro}, {numero}, {bairro}, {cidade}-{uf}"
                 if complemento:
                     endereco_formatado += f" (Compl.: {complemento})"
@@ -583,16 +604,17 @@ def tela_receita():
                     st.warning("Por favor, preencha os campos de endereço manualmente abaixo.")
 
         else:
-            rua = st.text_input("Rua:")
-            numero = st.text_input("Número:")
-            bairro = st.text_input("Bairro:")
-            cidade = st.text_input("Cidade:")
-            uf = st.text_input("Estado:")
+            rua = st.text_input("Rua:", key="rua_manual")
+            numero = st.text_input("Número:", key="numero_manual")
+            bairro = st.text_input("Bairro:", key="bairro_manual")
+            cidade = st.text_input("Cidade:", key="cidade_manual")
+            uf = st.text_input("Estado:", key="uf_manual")
             cep_manual = st.text_input(
                 "CEP:",
-                help="Digite o CEP no formato 12345-678"
+                help="Digite o CEP no formato 12345-678",
+                key="cep_manual"
             )
-            complemento = st.text_input("Complemento (opcional):")
+            complemento = st.text_input("Complemento (opcional):", key="complemento_manual")
 
             if cep_manual:
                 cep_formatado = formatar_cep(cep_manual)
@@ -605,23 +627,23 @@ def tela_receita():
                     st.warning("CEP inválido. Deve estar no formato 12345-678.")
 
     st.write("---")
-    paciente = st.text_input("Nome do Paciente:")
-    especie_raca = st.text_input("Espécie - Raça:")
-    pelagem = st.text_input("Pelagem:")
-    peso = st.text_input("Peso:")
-    idade = st.text_input("Idade:")
-    sexo = st.radio("Sexo:", ("Macho", "Fêmea"))
-    chip = st.text_input("Número do Chip (se houver):")
+    st.session_state.paciente = st.text_input("Nome do Paciente:", key="paciente")
+    st.session_state.especie_raca = st.text_input("Espécie - Raça:", key="especie_raca")
+    st.session_state.pelagem = st.text_input("Pelagem:", key="pelagem")
+    st.session_state.peso = st.text_input("Peso:", key="peso")
+    st.session_state.idade = st.text_input("Idade:", key="idade")
+    st.session_state.sexo = st.radio("Sexo:", ("Macho", "Fêmea"), key="sexo")
+    st.session_state.chip = st.text_input("Número do Chip (se houver):", key="chip")
 
     st.write("---")
-    tutor = st.text_input("Nome do Tutor(a):")
-    cpf = st.text_input("CPF do Tutor(a):")
+    st.session_state.tutor = st.text_input("Nome do Tutor(a):", key="tutor")
+    st.session_state.cpf = st.text_input("CPF do Tutor(a):", key="cpf")
 
     st.write("---")
     with st.form(key='form_medicamentos', clear_on_submit=False):
-        qtd_med = st.text_input("Quantidade do Medicamento:")
-        nome_med = st.text_input("Nome do Medicamento:")
-        conc_med = st.text_input("Concentração do Medicamento (ex: 500mg, 200mg/ml):")
+        qtd_med = st.text_input("Quantidade do Medicamento:", key="qtd_med")
+        nome_med = st.text_input("Nome do Medicamento:", key="nome_med")
+        conc_med = st.text_input("Concentração do Medicamento (ex: 500mg, 200mg/ml):", key="conc_med")
         submit_med = st.form_submit_button("Adicionar Medicamento")
         if submit_med:
             if qtd_med and nome_med:
@@ -646,13 +668,14 @@ def tela_receita():
         st.write("Nenhum medicamento adicionado.")
 
     st.write("---")
-    instrucoes_uso = st.text_area("Digite as instruções de uso:")
+    st.session_state.instrucoes_uso = st.text_area("Digite as instruções de uso:", key="instrucoes_uso")
 
     st.write("---")
     data_receita = st.date_input(
         "Data da Receita:",
         value=datetime.date.today(),
-        help="Selecione a data da receita. O padrão é a data atual."
+        help="Selecione a data da receita. O padrão é a data atual.",
+        key="data_receita"
     )
 
     if st.button("Gerar Receita"):
@@ -664,17 +687,17 @@ def tela_receita():
                 st.error("Endereço do Tutor(a) é obrigatório para medicamentos controlados.")
                 return
 
-        if not paciente:
+        if not st.session_state.paciente:
             st.error("Nome do Paciente é obrigatório.")
             return
-        if not tutor:
+        if not st.session_state.tutor:
             st.error("Nome do Tutor(a) é obrigatório.")
             return
-        if not cpf:
+        if not st.session_state.cpf:
             st.error("CPF do Tutor(a) é obrigatório.")
             return
         if eh_controlado == "Sim":
-            cep_utilizado = cep_manual if 'cep_manual' in locals() and cep_manual else st.session_state.get('cep_tutor', '')
+            cep_utilizado = st.session_state.get("cep_manual", st.session_state.cep_tutor)
             cep_formatado = formatar_cep(cep_utilizado)
             if not re.fullmatch(r'\d{5}-\d{3}', cep_formatado):
                 st.error("CEP inválido. Deve estar no formato 12345-678.")
@@ -685,8 +708,8 @@ def tela_receita():
         nome_vet = st.session_state.usuario_logado.get("nome_vet") or ""
         crmv = st.session_state.usuario_logado.get("crmv") or ""
 
-        cpf_formatado = formatar_cpf(cpf)
-        paciente_sanitizado = re.sub(r'[^\w\s-]', '', paciente).strip().replace(' ', '_')
+        cpf_formatado = formatar_cpf(st.session_state.cpf)
+        paciente_sanitizado = re.sub(r'[^\w\s-]', '', st.session_state.paciente).strip().replace(' ', '_')
         nome_pdf = f"{paciente_sanitizado} - {cpf_formatado}.pdf"
 
         data_receita_str = data_receita.strftime("%d/%m/%Y")
@@ -694,19 +717,19 @@ def tela_receita():
         nome_pdf = gerar_pdf_receita(
             nome_pdf=nome_pdf,
             tipo_farmacia=tipo_farmacia,
-            paciente=paciente,
-            tutor=tutor,
-            cpf=cpf,
+            paciente=st.session_state.paciente,
+            tutor=st.session_state.tutor,
+            cpf=st.session_state.cpf,
             rg=rg,
             endereco_formatado=endereco_formatado,
-            especie_raca=especie_raca,
-            pelagem=pelagem,
-            peso=peso,
-            idade=idade,
-            sexo=sexo,
-            chip=chip,
+            especie_raca=st.session_state.especie_raca,
+            pelagem=st.session_state.pelagem,
+            peso=st.session_state.peso,
+            idade=st.session_state.idade,
+            sexo=st.session_state.sexo,
+            chip=st.session_state.chip,
             lista_medicamentos=st.session_state.lista_medicamentos,
-            instrucoes_uso=instrucoes_uso,
+            instrucoes_uso=st.session_state.instrucoes_uso,
             imagem_fundo=imagem_fundo,
             imagem_assinatura=imagem_assinatura,
             nome_vet=nome_vet,
@@ -724,26 +747,43 @@ def tela_receita():
         # Salvar no Histórico com os detalhes adicionais
         historico = carregar_historico(st.session_state.usuario_logado["login"])
         registro = {
-            "Nome do Paciente": paciente,
-            "CPF do Tutor": formatar_cpf(cpf),
-            "Nome do Tutor": tutor,
+            "Nome do Paciente": st.session_state.paciente,
+            "CPF do Tutor": formatar_cpf(st.session_state.cpf),
+            "Nome do Tutor": st.session_state.tutor,
             "Medicamento Controlado": "Sim" if eh_controlado == "Sim" else "Não",
             "Data Emitida": data_receita_str,
             "Medicamentos": st.session_state.lista_medicamentos,
-            "Instruções de Uso": instrucoes_uso,
+            "Instruções de Uso": st.session_state.instrucoes_uso,
             "Tipo de Farmácia": tipo_farmacia,
-            "Espécie - Raça": especie_raca,
-            "Pelagem": pelagem,
-            "Peso": peso,
-            "Sexo": sexo,
-            "Número do Chip": chip
+            "Espécie - Raça": st.session_state.especie_raca,
+            "Pelagem": st.session_state.pelagem,
+            "Peso": st.session_state.peso,
+            "Sexo": st.session_state.sexo,
+            "Número do Chip": st.session_state.chip
         }
-        # Se for medicamento controlado, adiciona o Endereço
         if eh_controlado == "Sim":
             registro["Endereço"] = endereco_formatado
         historico.append(registro)
         salvar_historico(st.session_state.usuario_logado["login"], historico)
         st.success("Prescrição gerada e adicionada ao histórico com sucesso!")
+        
+        # *** RESET DOS CAMPOS ***
+        st.session_state.lista_medicamentos = []
+        st.session_state.paciente = ""
+        st.session_state.especie_raca = ""
+        st.session_state.pelagem = ""
+        st.session_state.peso = ""
+        st.session_state.idade = ""
+        st.session_state.sexo = "Macho"
+        st.session_state.chip = ""
+        st.session_state.tutor = ""
+        st.session_state.cpf = ""
+        st.session_state.instrucoes_uso = ""
+        st.session_state.cep_tutor = ""
+        st.session_state.end_busca = {}
+        
+        # Força a atualização da tela
+        st.experimental_rerun()
 
 def tela_historico():
     st.subheader("Histórico de Prescrições")
@@ -849,6 +889,20 @@ def main():
     with left_col:
         st.markdown("### Menu de Navegação")
         if st.button("Criar Receituário"):
+            # Zera os campos ao acessar a tela de criação de receituário
+            st.session_state.lista_medicamentos = []
+            st.session_state.paciente = ""
+            st.session_state.especie_raca = ""
+            st.session_state.pelagem = ""
+            st.session_state.peso = ""
+            st.session_state.idade = ""
+            st.session_state.sexo = "Macho"
+            st.session_state.chip = ""
+            st.session_state.tutor = ""
+            st.session_state.cpf = ""
+            st.session_state.instrucoes_uso = ""
+            st.session_state.cep_tutor = ""
+            st.session_state.end_busca = {}
             st.session_state.current_page = "Criar Receituário"
         if st.button("Histórico"):
             st.session_state.current_page = "Histórico"
