@@ -2,7 +2,7 @@ import os
 import json
 import datetime
 import re
-import base64
+import requests
 import streamlit as st
 
 # ----------------------------------------------
@@ -36,7 +36,7 @@ def salvar_usuarios(usuarios):
 
 def verificar_login(login, senha):
     if login == ADMIN_LOGIN and senha == ADMIN_SENHA:
-        return {"login": login, "is_admin": True, "nome_vet": None, "crmv": None}
+        return {"login": login, "is_admin": True, "nome_vet": None, "crmv": None, "fundo": None, "assinatura": None}
 
     usuarios = carregar_usuarios()
     user_data = usuarios.get(login)
@@ -45,7 +45,9 @@ def verificar_login(login, senha):
             "login": login,
             "is_admin": user_data.get("is_admin", False),
             "nome_vet": user_data.get("nome_vet"),
-            "crmv": user_data.get("crmv")
+            "crmv": user_data.get("crmv"),
+            "fundo": user_data.get("background_image"),
+            "assinatura": user_data.get("signature_image")
         }
     return None
 
@@ -56,7 +58,9 @@ def cadastrar_usuario(novo_login, nova_senha, nome_vet, crmv, is_admin=False):
         "password": nova_senha,
         "is_admin": is_admin,
         "nome_vet": nome_vet if not is_admin else None,
-        "crmv": crmv if not is_admin else None
+        "crmv": crmv if not is_admin else None,
+        "background_image": None,
+        "signature_image": None
     }
     salvar_usuarios(usuarios)
 
@@ -66,6 +70,24 @@ def remover_usuario(login):
     if login in usuarios:
         del usuarios[login]
         salvar_usuarios(usuarios)
+
+
+def buscar_endereco_via_cep(cep):
+    try:
+        url = f"https://viacep.com.br/ws/{cep}/json/"
+        r = requests.get(url, timeout=10)
+        r.raise_for_status()
+        dados = r.json()
+        if "erro" in dados:
+            return {}
+        return {
+            "logradouro": dados.get("logradouro", ""),
+            "bairro": dados.get("bairro", ""),
+            "localidade": dados.get("localidade", ""),
+            "uf": dados.get("uf", "")
+        }
+    except:
+        return {}
 
 
 # ----------------------------------------------
@@ -106,17 +128,6 @@ def main():
 
     def tela_admin():
         st.subheader("Administração de Usuários")
-
-        st.write("### Usuários Existentes:")
-        usuarios = carregar_usuarios()
-        if usuarios:
-            for u, data in usuarios.items():
-                st.write(f"- **Login**: {u} | Admin: {data.get('is_admin', False)}")
-        else:
-            st.write("Não há usuários cadastrados.")
-
-        st.write("---")
-        st.write("### Cadastrar Novo Usuário")
         novo_login = st.text_input("Novo login")
         nova_senha = st.text_input("Nova senha", type="password")
         admin_flag = st.checkbox("Usuário é administrador?")
@@ -135,39 +146,37 @@ def main():
             else:
                 st.warning("É necessário preencher login e senha.")
 
-        st.write("---")
-        st.write("### Remover Usuário")
-        usuario_remover = st.text_input("Login do usuário para remover:")
-        if st.button("Remover"):
-            if usuario_remover:
-                remover_usuario(usuario_remover)
-                st.success(f"Usuário '{usuario_remover}' removido com sucesso!")
-            else:
-                st.warning("Informe o login do usuário a ser removido.")
-
     def tela_perfil():
         st.subheader("Meu Perfil")
-        st.write("Aqui você pode visualizar suas informações.")
-
         st.write("**Nome do(a) Veterinário(a):**", usuario_atual.get("nome_vet", "Não Definido"))
         st.write("**CRMV:**", usuario_atual.get("crmv", "Não Definido"))
 
+        fundo_file = st.file_uploader("Upload da Imagem de Fundo", type=["png", "jpg", "jpeg"])
+        assinatura_file = st.file_uploader("Upload da Assinatura", type=["png", "jpg", "jpeg"])
+
     def tela_receita():
         st.subheader("Gerar Receituário")
+        tipo_farmacia = st.selectbox("Tipo de Farmácia:", [
+            "Farmácia Veterinária",
+            "Farmácia Humana",
+            "Farmácia de Manipulação - Veterinária",
+            "Farmácia de Manipulação - Humano"
+        ])
+        eh_controlado = st.radio("Medicamento Controlado?", ("Não", "Sim"))
+        rg = ""
+        endereco_formatado = ""
 
-        # Exibir dados do veterinário (bloqueados para edição)
-        st.write("**Veterinário(a):**", usuario_atual.get("nome_vet", "Não Definido"))
-        st.write("**CRMV:**", usuario_atual.get("crmv", "Não Definido"))
+        if eh_controlado == "Sim":
+            rg = st.text_input("RG do Tutor(a):")
+            cep = st.text_input("CEP do Tutor(a):")
+            if st.button("Buscar Endereço"):
+                endereco = buscar_endereco_via_cep(cep)
+                if endereco:
+                    endereco_formatado = f"{endereco.get('logradouro')}, {endereco.get('bairro')}, {endereco.get('localidade')}-{endereco.get('uf')}"
+                    st.success(f"Endereço encontrado: {endereco_formatado}")
 
         paciente = st.text_input("Nome do Paciente:")
         tutor = st.text_input("Nome do Tutor:")
-        cpf = st.text_input("CPF do Tutor:")
-        especie_raca = st.text_input("Espécie - Raça:")
-        pelagem = st.text_input("Pelagem:")
-        peso = st.text_input("Peso:")
-        idade = st.text_input("Idade:")
-        sexo = st.radio("Sexo:", ["Macho", "Fêmea"])
-        chip = st.text_input("Número do Chip (se houver):")
         medicamento = st.text_input("Nome do Medicamento:")
         quantidade = st.text_input("Quantidade:")
         instrucoes = st.text_area("Instruções de Uso:")
