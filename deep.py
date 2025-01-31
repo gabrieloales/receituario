@@ -1,5 +1,8 @@
 import os
 import json
+import datetime
+import re
+import base64
 import streamlit as st
 
 # ----------------------------------------------
@@ -85,7 +88,6 @@ def main():
             if user_info:
                 st.session_state.autenticado = True
                 st.session_state.usuario_logado = user_info
-                st.experimental_set_query_params(refresh=True)  # Simples workaround para atualização manual
             else:
                 st.error("Login ou senha incorretos.")
         return
@@ -96,7 +98,6 @@ def main():
     if st.button("Sair"):
         st.session_state.autenticado = False
         st.session_state.usuario_logado = None
-        st.experimental_set_query_params(refresh=True)  # Simples workaround para atualização manual
 
     menu = ["Gerar Receita", "Meu Perfil"]
     if usuario_atual["is_admin"]:
@@ -160,8 +161,16 @@ def main():
 
         paciente = st.text_input("Nome do Paciente:")
         tutor = st.text_input("Nome do Tutor:")
+        cpf = st.text_input("CPF do Tutor:")
+        especie_raca = st.text_input("Espécie - Raça:")
+        pelagem = st.text_input("Pelagem:")
+        peso = st.text_input("Peso:")
+        idade = st.text_input("Idade:")
+        sexo = st.radio("Sexo:", ["Macho", "Fêmea"])
+        chip = st.text_input("Número do Chip (se houver):")
         medicamento = st.text_input("Nome do Medicamento:")
         quantidade = st.text_input("Quantidade:")
+        instrucoes = st.text_area("Instruções de Uso:")
 
         if st.button("Gerar Receita"):
             if paciente and tutor and medicamento and quantidade:
