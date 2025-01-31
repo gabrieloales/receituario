@@ -635,6 +635,7 @@ def tela_receita():
                 st.session_state.qtd_med = ""
                 st.session_state.nome_med = ""
                 st.session_state.conc_med = ""
+                st.experimental_rerun()  # Reexecuta a app para atualizar os campos
             else:
                 st.warning("Informe quantidade e nome do medicamento.")
 
