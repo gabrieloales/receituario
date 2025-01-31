@@ -725,21 +725,26 @@ def main():
     # CSS personalizado para centralizar e reduzir os campos de login
     st.markdown("""
         <style>
-        /* Centralizar o título */
+        /* Centralizar o título na coluna de navegação */
         .titulo {
             text-align: center;
             font-size: 30px;
             font-weight: bold;
+            margin-bottom: 20px;
         }
-        /* Reduzir e centralizar os campos de login */
+        /* Centralizar os campos de login */
         .login-container {
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 70vh;
+            height: 100vh;  /* Ocupa toda a altura da viewport */
         }
         .login-box {
             width: 250px;  /* Valor reduzido */
+            padding: 20px; /* Espaçamento interno */
+            border: 1px solid #ccc; /* Borda */
+            border-radius: 5px; /* Bordas arredondadas */
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Sombra */
         }
         </style>
     """, unsafe_allow_html=True)
@@ -758,29 +763,20 @@ def main():
         # Container para centralizar o formulário de login
         with st.container():
             st.markdown('<div class="login-container">', unsafe_allow_html=True)
-            col1, col2, col3 = st.columns([1, 2, 1])
-
-            with col1:
-                pass  # Espaço vazio à esquerda
-
-            with col2:
-                st.markdown('<div class="login-box">', unsafe_allow_html=True)
-                # Campos de Login
-                login = st.text_input("Login:", key="login_input")
-                senha = st.text_input("Senha:", type="password", key="senha_input")
-                if st.button("Entrar"):
-                    user_info = verificar_login(login, senha)
-                    if user_info:
-                        st.session_state.autenticado = True
-                        st.session_state.usuario_logado = user_info
-                        st.success("Login bem-sucedido!")
-                    else:
-                        st.error("Login ou senha incorretos.")
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            with col3:
-                pass  # Espaço vazio à direita
-
+            st.markdown('<div class="login-box">', unsafe_allow_html=True)
+            st.markdown("<h2>Login</h2>", unsafe_allow_html=True)
+            # Campos de Login
+            login = st.text_input("Login:", key="login_input")
+            senha = st.text_input("Senha:", type="password", key="senha_input")
+            if st.button("Entrar"):
+                user_info = verificar_login(login, senha)
+                if user_info:
+                    st.session_state.autenticado = True
+                    st.session_state.usuario_logado = user_info
+                    st.success("Login bem-sucedido!")
+                else:
+                    st.error("Login ou senha incorretos.")
+            st.markdown('</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
         return  # Impede o acesso ao restante do aplicativo se não estiver autenticado
 
