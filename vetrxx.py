@@ -406,10 +406,6 @@ def gerar_pdf_receita(
         except Exception as e:
             st.warning(f"[Aviso] Não foi possível inserir a assinatura: {e}")
 
-    # ----- Campo de Seleção de Data -----
-    # Este campo será preenchido no Streamlit e passado para gerar_pdf_receita
-    # Portanto, já está sendo tratado na função tela_receita()
-
     # ----- Campos "Data", "M. V." e "CRMV" -----
     c.setFont("Helvetica", font_footer)
     c.drawCentredString(x_assinatura, config_posicoes["data_y"], f"CURITIBA, PR, {data_receita}")
@@ -617,7 +613,7 @@ def tela_receita():
 
     # Medicamentos
     st.write("---")
-    with st.form(key='form_medicamentos', clear_on_submit=False):
+    with st.form(key='form_medicamentos', clear_on_submit=True):  # Alterado para clear_on_submit=True
         qtd_med = st.text_input("Quantidade do Medicamento:")
         nome_med = st.text_input("Nome do Medicamento:")
         conc_med = st.text_input("Concentração do Medicamento (ex: 500mg, 200mg/ml):")
@@ -630,6 +626,8 @@ def tela_receita():
                     "concentracao": conc_med
                 })
                 st.success("Medicamento adicionado!")
+                # Limpa os campos manualmente se necessário
+                st.experimental_rerun()  # Reexecuta a app para limpar os campos
             else:
                 st.warning("Informe quantidade e nome do medicamento.")
 
@@ -736,7 +734,33 @@ def tela_receita():
 # ----------------------------------------------
 def main():
     st.set_page_config(layout="wide")  # Permite uso mais flexível do layout
-    st.title("VetyRx - Receituário Veterinário")
+
+    # CSS personalizado para centralizar e reduzir os campos de login
+    st.markdown("""
+        <style>
+        /* Centralizar o título na coluna de navegação */
+        .titulo {
+            text-align: center;
+            font-size: 30px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        /* Centralizar os campos de login */
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;  /* Ocupa toda a altura da viewport */
+        }
+        .login-box {
+            width: 250px;  /* Valor reduzido */
+            padding: 20px; /* Espaçamento interno */
+            border: 1px solid #ccc; /* Borda */
+            border-radius: 5px; /* Bordas arredondadas */
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Sombra */
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
     # Verifica se o usuário está autenticado
     if "autenticado" not in st.session_state:
@@ -749,17 +773,24 @@ def main():
     # TELA DE LOGIN
     # ----------------------------------
     if not st.session_state.autenticado:
-        st.subheader("Login")
-        login = st.text_input("Login:")
-        senha = st.text_input("Senha:", type="password")
-        if st.button("Entrar"):
-            user_info = verificar_login(login, senha)
-            if user_info:
-                st.session_state.autenticado = True
-                st.session_state.usuario_logado = user_info
-                st.success("Login bem-sucedido!")
-            else:
-                st.error("Login ou senha incorretos.")
+        # Container para centralizar o formulário de login
+        with st.container():
+            st.markdown('<div class="login-container">', unsafe_allow_html=True)
+            st.markdown('<div class="login-box">', unsafe_allow_html=True)
+            st.markdown("<h2>Login</h2>", unsafe_allow_html=True)
+            # Campos de Login
+            login = st.text_input("Login:", key="login_input")
+            senha = st.text_input("Senha:", type="password", key="senha_input")
+            if st.button("Entrar"):
+                user_info = verificar_login(login, senha)
+                if user_info:
+                    st.session_state.autenticado = True
+                    st.session_state.usuario_logado = user_info
+                    st.success("Login bem-sucedido!")
+                else:
+                    st.error("Login ou senha incorretos.")
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
         return  # Impede o acesso ao restante do aplicativo se não estiver autenticado
 
     # Se chegou aqui, está autenticado
@@ -773,7 +804,11 @@ def main():
     left_col, content_col = st.columns([left_col_width, content_col_width])
 
     with left_col:
+        # Adicionando o título "VetyRx - Receituário Veterinário" na coluna de navegação
+        st.markdown('<div class="titulo">VetyRx - Receituário Veterinário</div>', unsafe_allow_html=True)
         st.markdown("### Menu de Navegação")
+        st.write("")  # Espaço
+
         # Botão para Criar Receituário
         if st.button("Criar Receituário"):
             st.session_state.current_page = "Criar Receituário"
@@ -788,7 +823,7 @@ def main():
                 st.session_state.current_page = "Administração de Usuários"
 
         # Adiciona espaço para empurrar os elementos para baixo
-        st.write("\n" * 20)
+        st.write("\n" * 10)
 
         # Informações do usuário logado e botão sair no canto inferior esquerdo
         st.markdown("---")
