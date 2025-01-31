@@ -413,7 +413,8 @@ def main():
             if user_info:
                 st.session_state.autenticado = True
                 st.session_state.usuario_logado = user_info
-                st.experimental_rerun()  # Força recarregar a página já logado
+                # Aqui o rerun ajuda a recarregar a tela já logado
+                st.experimental_rerun()
             else:
                 st.error("Login ou senha incorretos.")
         return  # Se não estiver autenticado, não mostra o resto
@@ -457,6 +458,7 @@ def main():
             if novo_login and nova_senha:
                 cadastrar_usuario(novo_login, nova_senha, admin_flag)
                 st.success(f"Usuário '{novo_login}' cadastrado/atualizado com sucesso!")
+                # Rerun aqui força atualizar a lista de usuários
                 st.experimental_rerun()
             else:
                 st.warning("É necessário preencher login e senha.")
@@ -468,6 +470,7 @@ def main():
             if usuario_remover:
                 remover_usuario(usuario_remover)
                 st.success(f"Usuário '{usuario_remover}' removido com sucesso!")
+                # Rerun aqui força recarregar a lista
                 st.experimental_rerun()
             else:
                 st.warning("Informe o login do usuário a ser removido.")
@@ -492,10 +495,11 @@ def main():
         if st.button("Salvar Dados Veterinário"):
             atualizar_dados_veterinario(usuario_atual["login"], nome_vet_input, crmv_input)
             st.success("Dados de Veterinário(a) atualizados!")
-            # Atualiza session_state local para refletir no front-end
+            # Atualiza os dados em session_state local
             usuario_atual["nome_vet"] = nome_vet_input
             usuario_atual["crmv"] = crmv_input
-            st.experimental_rerun()
+            # Removido o st.experimental_rerun() daqui
+            # A página não recarrega, mas os dados já estão salvos no JSON.
 
         st.write("---")
         # Upload de imagem de fundo
@@ -507,7 +511,7 @@ def main():
             atualizar_imagem_usuario(usuario_atual["login"], fundo_path, tipo="fundo")
             st.success("Imagem de fundo atualizada!")
             usuario_atual["fundo"] = fundo_path
-            st.experimental_rerun()
+            # Removido o st.experimental_rerun() também aqui.
 
         # Upload de assinatura
         assinatura_file = st.file_uploader("Upload da Assinatura (opcional)", type=["png", "jpg", "jpeg"])
@@ -518,7 +522,7 @@ def main():
             atualizar_imagem_usuario(usuario_atual["login"], assinatura_path, tipo="assinatura")
             st.success("Assinatura atualizada!")
             usuario_atual["assinatura"] = assinatura_path
-            st.experimental_rerun()
+            # Removido também aqui.
 
         st.write("---")
         st.write("**Imagem de fundo atual**:", usuario_atual.get("fundo"))
@@ -668,8 +672,8 @@ def main():
                 chip=chip,
                 lista_medicamentos=st.session_state.lista_medicamentos,
                 instrucoes_uso=instrucoes_uso,
-                nome_vet=nome_vet,                # Puxa do perfil
-                crmv=crmv,                        # Puxa do perfil
+                nome_vet=nome_vet,   # Puxa do perfil
+                crmv=crmv,           # Puxa do perfil
                 imagem_fundo=imagem_fundo,
                 imagem_assinatura=imagem_assinatura
             )
@@ -678,7 +682,7 @@ def main():
             html_download = gerar_download_automatico(pdf_path)
             st.markdown(html_download, unsafe_allow_html=True)
 
-            # Se desejar, pode limpar a lista de medicamentos aqui:
+            # Se quiser, pode limpar a lista de medicamentos após gerar
             # st.session_state.lista_medicamentos = []
 
     # ----------------------------------
