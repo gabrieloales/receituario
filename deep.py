@@ -454,9 +454,17 @@ def main():
     # BOTÃO PARA SAIR
     # ----------------------------------
     if st.button("Sair"):
+        # Redefine as variáveis de estado
         st.session_state.autenticado = False
         st.session_state.usuario_logado = None
-        st.experimental_rerun()
+        # Redefine quaisquer outras variáveis de sessão que possam existir
+        # Por exemplo, limpar a lista de medicamentos
+        if "lista_medicamentos" in st.session_state:
+            del st.session_state.lista_medicamentos
+        # Informar o usuário sobre o logout bem-sucedido
+        st.success("Logout realizado com sucesso!")
+        # Não usar st.experimental_rerun(), pois isso está causando o erro
+        # O Streamlit já reexecuta o script após a interação
 
     # ----------------------------------
     # MENU LATERAL
@@ -492,7 +500,12 @@ def main():
             if novo_login and nova_senha and nome_vet and crmv:
                 cadastrar_usuario(novo_login, nova_senha, nome_vet=nome_vet, crmv=crmv, is_admin=admin_flag)
                 st.success(f"Usuário '{novo_login}' cadastrado/atualizado com sucesso!")
-                st.experimental_rerun()
+                # Limpa os campos após o cadastro
+                st.session_state.novo_login = ""
+                st.session_state.nova_senha = ""
+                st.session_state.admin_flag = False
+                st.session_state.nome_vet = ""
+                st.session_state.crmv = ""
             else:
                 st.warning("É necessário preencher login, senha, nome do(a) veterinário(a) e CRMV.")
 
@@ -503,7 +516,8 @@ def main():
             if usuario_remover:
                 remover_usuario(usuario_remover)
                 st.success(f"Usuário '{usuario_remover}' removido com sucesso!")
-                st.experimental_rerun()
+                # Limpa o campo após a remoção
+                st.session_state.usuario_remover = ""
             else:
                 st.warning("Informe o login do usuário a ser removido.")
 
