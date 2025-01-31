@@ -7,14 +7,13 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.lib import colors
-from reportlab.platypus import Image
 import streamlit as st
 
 # ----------------------------------------------
 # CONSTANTES E CONFIGURAÇÕES
 # ----------------------------------------------
-USERS_FILE = "users.json"  # Arquivo para armazenar usuários
-USER_FILES_DIR = "user_files"  # Pasta base para armazenar arquivos de cada usuário
+USERS_FILE = "users.json"       # Arquivo para armazenar usuários
+USER_FILES_DIR = "user_files"   # Pasta base para armazenar arquivos de cada usuário
 
 # Administrador "principal" hard-coded (opcional).
 ADMIN_LOGIN = "larsen"
@@ -22,7 +21,7 @@ ADMIN_SENHA = "31415962Isa@"
 
 
 # ----------------------------------------------
-# FUNÇÕES DE SUPORTE
+# FUNÇÕES DE SUPORTE A USUÁRIOS
 # ----------------------------------------------
 
 def carregar_usuarios():
@@ -49,7 +48,14 @@ def verificar_login(login, senha):
     """
     # Primeiro, checa se é o admin "hard-coded":
     if login == ADMIN_LOGIN and senha == ADMIN_SENHA:
-        return {"login": login, "is_admin": True, "fundo": None, "assinatura": None}
+        return {
+            "login": login,
+            "is_admin": True,
+            "fundo": None,
+            "assinatura": None,
+            "nome_vet": None,
+            "crmv": None
+        }
 
     # Caso contrário, verifica no arquivo de usuários:
     usuarios = carregar_usuarios()
@@ -59,7 +65,10 @@ def verificar_login(login, senha):
             "login": login,
             "is_admin": user_data.get("is_admin", False),
             "fundo": user_data.get("background_image"),
-            "assinatura": user_data.get("signature_image")
+            "assinatura": user_data.get("signature_image"),
+            # Novos campos no perfil
+            "nome_vet": user_data.get("nome_vet"),
+            "crmv": user_data.get("crmv")
         }
     return None
 
@@ -67,12 +76,20 @@ def verificar_login(login, senha):
 def cadastrar_usuario(novo_login, nova_senha, is_admin=False):
     """Cadastra um novo usuário (ou atualiza se já existir)."""
     usuarios = carregar_usuarios()
-    usuarios[novo_login] = {
-        "password": nova_senha,
-        "is_admin": is_admin,
-        "background_image": None,
-        "signature_image": None
-    }
+    if novo_login not in usuarios:
+        usuarios[novo_login] = {}
+    usuarios[novo_login]["password"] = nova_senha
+    usuarios[novo_login]["is_admin"] = is_admin
+    # Se ainda não existir, define None
+    if "background_image" not in usuarios[novo_login]:
+        usuarios[novo_login]["background_image"] = None
+    if "signature_image" not in usuarios[novo_login]:
+        usuarios[novo_login]["signature_image"] = None
+    if "nome_vet" not in usuarios[novo_login]:
+        usuarios[novo_login]["nome_vet"] = None
+    if "crmv" not in usuarios[novo_login]:
+        usuarios[novo_login]["crmv"] = None
+
     salvar_usuarios(usuarios)
 
 
@@ -106,6 +123,22 @@ def atualizar_imagem_usuario(login, image_path, tipo="fundo"):
     salvar_usuarios(usuarios)
 
 
+def atualizar_dados_veterinario(login, nome_vet, crmv):
+    """
+    Atualiza o nome do(a) veterinário(a) e CRMV no perfil do usuário.
+    """
+    usuarios = carregar_usuarios()
+    if login not in usuarios:
+        return
+    usuarios[login]["nome_vet"] = nome_vet
+    usuarios[login]["crmv"] = crmv
+    salvar_usuarios(usuarios)
+
+
+# ----------------------------------------------
+# FUNÇÕES DE APOIO GERAIS
+# ----------------------------------------------
+
 def formatar_cpf(cpf_str: str) -> str:
     digits = re.sub(r'\D', '', cpf_str)
     if len(digits) == 11:
@@ -114,11 +147,16 @@ def formatar_cpf(cpf_str: str) -> str:
 
 
 def buscar_endereco_via_cep(cep: str) -> dict:
+    """Tenta buscar o endereço via CEP. Se não achar, retorna dicionário vazio."""
+    cep_limpo = re.sub(r'\D', '', cep)
+    if not cep_limpo:
+        return {}
     try:
-        url = f"https://viacep.com.br/ws/{cep}/json/"
+        url = f"https://viacep.com.br/ws/{cep_limpo}/json/"
         r = requests.get(url, timeout=10)
         r.raise_for_status()
         dados = r.json()
+        # Se "erro" em dados, retorna vazio
         if "erro" in dados:
             return {}
         return {
@@ -127,10 +165,16 @@ def buscar_endereco_via_cep(cep: str) -> dict:
             "localidade": dados.get("localidade", ""),
             "uf": dados.get("uf", "")
         }
-    except Exception as e:
-        st.warning(f"Erro ao buscar CEP: {e}")
+    except:
         return {}
 
+
+# ----------------------------------------------
+# FUNÇÃO PRINCIPAL PARA GERAR O PDF
+# (Com posição customizada da assinatura,
+#  Bezier/artefato "Blezie" e uso de
+#  nome_vet/CRMV.)
+# ----------------------------------------------
 
 def gerar_pdf_receita(
     nome_pdf="receita_veterinaria.pdf",
@@ -149,22 +193,49 @@ def gerar_pdf_receita(
     lista_medicamentos=None,
     instrucoes_uso="",
     data_receita=None,
-    # Novos campos:
+    # Imagens de fundo/assinatura
     imagem_fundo=None,
-    imagem_assinatura=None
+    imagem_assinatura=None,
+    # Nome e CRMV do(a) veterinário(a)
+    nome_vet=None,
+    crmv=None
 ):
+    """
+    Gera o PDF da receita, incluindo:
+      - Bezier/linha para prevenir escrita posterior.
+      - Assinatura em posição customizada.
+      - Uso de M. V. {nome_vet} e CRMV-PR: {crmv}.
+    """
     if lista_medicamentos is None:
         lista_medicamentos = []
     if not data_receita:
         data_receita = datetime.datetime.now().strftime("%d/%m/%Y")
 
+    # Padroniza se faltar algo
+    if not nome_vet:
+        nome_vet = "NOME NÃO DEFINIDO"
+    if not crmv:
+        crmv = "00000"
+
+    # Normaliza para uppercase no final da assinatura
+    nome_vet_up = nome_vet.upper()
+
     largura, altura = A4
     c = canvas.Canvas(nome_pdf, pagesize=A4)
 
-    # Se existir imagem de fundo, desenha no background (ajuste se necessário)
+    # Tenta desenhar imagem de fundo
     if imagem_fundo and os.path.exists(imagem_fundo):
-        # Preenche a página inteira
-        c.drawImage(imagem_fundo, 0, 0, width=largura, height=altura)
+        try:
+            c.drawImage(
+                imagem_fundo,
+                0, 0,
+                width=largura,
+                height=altura,
+                preserveAspectRatio=True,
+                mask='auto'
+            )
+        except Exception as e:
+            st.warning(f"[Aviso] Não foi possível inserir a imagem de fundo: {e}")
 
     # Configurações de fonte
     font_label = "Helvetica-Bold"
@@ -172,6 +243,8 @@ def gerar_pdf_receita(
     font_label_size = 9
     font_value_size = 9
     font_title_size = 13
+    font_med_title = 10
+    font_footer = 10
 
     # Margens
     margem_esquerda = 2 * cm
@@ -183,7 +256,7 @@ def gerar_pdf_receita(
     c.setFont(font_label, font_title_size)
     c.drawCentredString(largura / 2, y_titulo, tipo_farmacia.upper())
 
-    # Dados do Paciente
+    # Dados do Paciente - (coluna esquerda)
     y_left = y_titulo - 1 * cm
     left_fields = [
         ("PACIENTE: ", paciente),
@@ -203,7 +276,7 @@ def gerar_pdf_receita(
         c.setFont(font_label, font_label_size)
         y_left -= 0.7 * cm
 
-    # Dados do Tutor
+    # Dados do Tutor - (coluna direita)
     y_right = y_titulo - 1 * cm
     right_fields = [
         ("TUTOR(A): ", tutor),
@@ -214,7 +287,6 @@ def gerar_pdf_receita(
     if endereco_formatado:
         right_fields.append(("ENDEREÇO: ", endereco_formatado))
 
-    c.setFont(font_label, font_label_size)
     for label, valor in right_fields:
         c.drawString(margem_esquerda + largura_util / 2, y_right, label)
         offset = c.stringWidth(label, font_label, font_label_size)
@@ -223,53 +295,94 @@ def gerar_pdf_receita(
         c.setFont(font_label, font_label_size)
         y_right -= 0.7 * cm
 
-    # Medicamentos
-    y_med = min(y_left, y_right) - 1 * cm  # Começa abaixo do menor dos dois lados
-    c.setFont(font_label, 10)
+    # Inicia lista de medicamentos
+    y_med = min(y_left, y_right) - 1.2 * cm
+    c.setFont(font_label, font_med_title)
+
+    # Linha horizontal antes dos medicamentos (opcional)
+    # c.line(margem_esquerda, y_med, margem_esquerda + largura_util, y_med)
+    # y_med -= 0.5 * cm
+
     for i, med in enumerate(lista_medicamentos, start=1):
-        texto_med = f"{i}) QTD: {med.get('quantidade', '')} - MEDICAMENTO: {med.get('nome', '')}"
+        texto_med = f"{i}) QTD: {med.get('quantidade', '').upper()} - MEDICAMENTO: {med.get('nome', '').upper()}"
         c.drawString(margem_esquerda, y_med, texto_med)
-        y_med -= 0.7 * cm
+        y_med -= 0.8 * cm
+
+        # Se quiser adicionar "concentração", etc. - Exemplo:
+        # conc = med.get("concentracao", "")
+        # if conc:
+        #     c.setFont(font_label, font_med_title)
+        #     label_conc = "CONCENTRAÇÃO: "
+        #     c.drawString(margem_esquerda + 1*cm, y_med, label_conc)
+        #     offset_conc = c.stringWidth(label_conc, font_label, font_med_title)
+        #     c.setFont(font_value, font_med_title)
+        #     c.drawString(margem_esquerda + 1*cm + offset_conc, y_med, conc)
+        #     y_med -= 0.8 * cm
+        # c.setFont(font_label, font_med_title)
 
     # Instruções de Uso
-    y_inst = y_med - 1 * cm
-    c.setFont(font_label, 10)
+    y_inst = y_med - 1.5 * cm
+    c.setFont(font_label, font_med_title)
     c.drawString(margem_esquerda, y_inst, "INSTRUÇÕES DE USO: ")
-    y_inst -= 0.7 * cm
+    y_inst -= 0.9 * cm
     c.setFont(font_value, font_value_size)
     for linha in instrucoes_uso.split("\n"):
-        c.drawString(margem_esquerda, y_inst, linha)
-        y_inst -= 0.7 * cm
+        c.drawString(margem_esquerda, y_inst, linha.upper())
+        y_inst -= 0.6 * cm
 
-    # Rodapé
-    y_rodape = 2 * cm
-    c.setFont(font_value, 10)
-    c.drawString(margem_esquerda, y_rodape, f"Data: {data_receita}")
+    # "Artefato Blezie": Desenha uma curva para impedir escrita abaixo
+    y_curva_inicial = y_inst - 1.5 * cm
+    if y_curva_inicial < 0:
+        y_curva_inicial = 0
+    y_curva_final = 8 * cm  # altura onde a curva terminará
+    c.setLineWidth(2)
+    c.setStrokeColor(colors.grey)
+    c.bezier(margem_esquerda, y_curva_inicial,
+             largura / 2, y_curva_inicial + 2 * cm,
+             largura / 2, y_curva_final - 2 * cm,
+             largura - margem_direita, y_curva_final)
+    c.setStrokeColor(colors.black)
 
-    # Se existir imagem de assinatura, desenha acima da linha de assinatura
+    # Rodapé: Assinatura, Data, Nome, CRMV
+    # Ajuste de posição/offset
+    x_centro_rodape = largura / 2
+    y_rodape = 6 * cm
+
+    # Desenha a imagem da assinatura (se existir)
+    assinatura_width = 4 * cm
+    assinatura_height = 1.5 * cm
     if imagem_assinatura and os.path.exists(imagem_assinatura):
-        # Ajuste a largura/altura da assinatura conforme necessário:
-        assinatura_largura = 4 * cm
-        assinatura_altura = 2 * cm
-        c.drawImage(
-            imagem_assinatura,
-            margem_esquerda,  # x
-            y_rodape - 0.7 * cm - assinatura_altura,  # y (logo acima da linha)
-            width=assinatura_largura,
-            height=assinatura_altura
-        )
-        c.drawString(
-            margem_esquerda,
-            y_rodape - 1.0 * cm - assinatura_altura,
-            "_________________________________"
-        )
-    else:
-        # Caso não tenha assinatura, apenas imprime a linha
-        c.drawString(margem_esquerda, y_rodape - 0.7 * cm, "Assinatura: ___________________________")
+        try:
+            c.drawImage(
+                imagem_assinatura,
+                x_centro_rodape - (assinatura_width / 2),
+                y_rodape,
+                width=assinatura_width,
+                height=assinatura_height,
+                preserveAspectRatio=True,
+                mask='auto'
+            )
+        except Exception as e:
+            st.warning(f"[Aviso] Não foi possível inserir a assinatura: {e}")
 
+    # Ajusta y após colocar a imagem
+    y_rodape -= (assinatura_height + 0.5 * cm)
+
+    # Data
+    c.setFont(font_value, font_footer)
+    c.drawCentredString(x_centro_rodape, y_rodape, f"CURITIBA, PR, {data_receita}")
+    y_rodape -= 0.5 * cm
+
+    # Nome veterinário
+    c.drawCentredString(x_centro_rodape, y_rodape, f"M. V. {nome_vet_up}")
+    y_rodape -= 0.5 * cm
+
+    # CRMV
+    c.drawCentredString(x_centro_rodape, y_rodape, f"CRMV-PR: {crmv}")
+
+    c.showPage()
     c.save()
     return nome_pdf
-
 
 # ----------------------------------------------
 # INTERFACE PRINCIPAL (STREAMLIT)
@@ -314,7 +427,7 @@ def main():
         st.experimental_rerun()
 
     # ----------------------------------
-    # MENU
+    # MENU LATERAL
     # ----------------------------------
     menu = ["Gerar Receita", "Meu Perfil"]
     if usuario_atual["is_admin"]:
@@ -362,49 +475,118 @@ def main():
 
     def tela_perfil():
         st.subheader("Meu Perfil")
-        st.write("Aqui você pode fazer o upload das suas imagens de fundo e assinatura.")
+        st.write("Aqui você pode configurar os dados de Veterinário(a), imagens etc.")
 
         # Pasta do usuário
         user_folder = os.path.join(USER_FILES_DIR, usuario_atual["login"])
         if not os.path.exists(user_folder):
             os.makedirs(user_folder)
 
+        # Nome Veterinário(a) e CRMV
+        nome_vet_atual = usuario_atual.get("nome_vet") or ""
+        crmv_atual = usuario_atual.get("crmv") or ""
+
+        nome_vet_input = st.text_input("Nome do(a) Veterinário(a):", value=nome_vet_atual)
+        crmv_input = st.text_input("CRMV (somente números ou ex: 12345):", value=crmv_atual)
+        if st.button("Salvar Dados Veterinário"):
+            atualizar_dados_veterinario(usuario_atual["login"], nome_vet_input, crmv_input)
+            st.success("Dados de Veterinário(a) atualizados!")
+            # Atualiza session_state
+            usuario_atual["nome_vet"] = nome_vet_input
+            usuario_atual["crmv"] = crmv_input
+
+        st.write("---")
         # Upload de imagem de fundo
         fundo_file = st.file_uploader("Upload da Imagem de Fundo (opcional)", type=["png", "jpg", "jpeg"])
         if fundo_file is not None:
-            # Salvar localmente
             fundo_path = os.path.join(user_folder, "fundo_" + fundo_file.name)
             with open(fundo_path, "wb") as f:
                 f.write(fundo_file.getvalue())
-            # Atualiza no JSON
             atualizar_imagem_usuario(usuario_atual["login"], fundo_path, tipo="fundo")
             st.success("Imagem de fundo atualizada com sucesso!")
-            # Atualiza session_state
             usuario_atual["fundo"] = fundo_path
 
         # Upload de assinatura
         assinatura_file = st.file_uploader("Upload da Assinatura (opcional)", type=["png", "jpg", "jpeg"])
         if assinatura_file is not None:
-            # Salvar localmente
             assinatura_path = os.path.join(user_folder, "assinatura_" + assinatura_file.name)
             with open(assinatura_path, "wb") as f:
                 f.write(assinatura_file.getvalue())
-            # Atualiza no JSON
             atualizar_imagem_usuario(usuario_atual["login"], assinatura_path, tipo="assinatura")
             st.success("Assinatura atualizada com sucesso!")
-            # Atualiza session_state
             usuario_atual["assinatura"] = assinatura_path
 
         st.write("---")
-        st.write("**Imagem de fundo atual**:", usuario_atual["fundo"])
-        st.write("**Assinatura atual**:", usuario_atual["assinatura"])
+        st.write("**Imagem de fundo atual**:", usuario_atual.get("fundo"))
+        st.write("**Assinatura atual**:", usuario_atual.get("assinatura"))
+        st.write("**Nome Vet:**", usuario_atual.get("nome_vet"))
+        st.write("**CRMV:**", usuario_atual.get("crmv"))
 
     def tela_receita():
+        st.subheader("Gerar Receituário")
+
         # Inicializa a lista de medicamentos no session_state
         if "lista_medicamentos" not in st.session_state:
             st.session_state.lista_medicamentos = []
+        else:
+            # Se quiser limpar a cada vez que entra na tela, descomente:
+            # st.session_state.lista_medicamentos = []
+            pass
 
-        st.subheader("Dados do Paciente")
+        # Pergunta se é medicamento controlado
+        eh_controlado = st.radio("Medicamento Controlado?", ("Não", "Sim"))
+        if eh_controlado == "Sim":
+            # RG
+            rg = st.text_input("RG do Tutor(a):")
+            # CEP e Endereço
+            cep = st.text_input("CEP do Tutor(a):")
+            endereco_formatado = ""
+            if cep:
+                if st.button("Buscar Endereço"):
+                    dados_end = buscar_endereco_via_cep(cep)
+                    if not dados_end:
+                        st.warning("CEP não encontrado. Preencha manualmente abaixo.")
+                    else:
+                        # Monta string
+                        rua = dados_end.get("logradouro", "")
+                        bairro = dados_end.get("bairro", "")
+                        cidade = dados_end.get("localidade", "")
+                        uf = dados_end.get("uf", "")
+                        numero = st.text_input("Número:")
+                        complemento = st.text_input("Complemento (opcional):")
+                        endereco_formatado = f"{rua}, {numero}, {bairro}, {cidade}-{uf}"
+                        if complemento:
+                            endereco_formatado += f" (Compl.: {complemento})"
+
+            else:
+                # Caso não tenha cep, pode preencher manualmente
+                st.write("Preencha o endereço manualmente se desejar.")
+            # Se usuário quer preencher manual:
+            manual = st.checkbox("Preencher Endereço Manualmente?")
+            if manual:
+                rua_m = st.text_input("Rua:")
+                num_m = st.text_input("Número:")
+                bairro_m = st.text_input("Bairro:")
+                cid_m = st.text_input("Cidade:")
+                uf_m = st.text_input("UF:")
+                compl_m = st.text_input("Complemento (opcional):")
+                cep_m = st.text_input("CEP (opcional):")
+                if st.button("Montar Endereço Manual"):
+                    endereco_formatado = f"{rua_m}, {num_m}, {bairro_m}, {cid_m}-{uf_m}"
+                    if compl_m:
+                        endereco_formatado += f" (Compl.: {compl_m})"
+                    if cep_m:
+                        endereco_formatado += f" - CEP: {cep_m}"
+            # Salvar RG e endereço no st.session_state para uso no PDF
+            st.session_state.rg = rg
+            st.session_state.endereco = endereco_formatado
+        else:
+            # Se não for controlado, RG e endereço ficam vazios
+            st.session_state.rg = ""
+            st.session_state.endereco = ""
+
+        st.write("---")
+        # Dados do Paciente
         paciente = st.text_input("Nome do Paciente:")
         especie_raca = st.text_input("Espécie - Raça:")
         pelagem = st.text_input("Pelagem:")
@@ -413,39 +595,48 @@ def main():
         sexo = st.radio("Sexo:", ("Macho", "Fêmea"))
         chip = st.text_input("Número do Chip (se houver):")
 
-        st.subheader("Dados do Tutor")
+        st.write("---")
+        # Dados do Tutor
         tutor = st.text_input("Nome do Tutor(a):")
         cpf = st.text_input("CPF do Tutor(a):")
-        rg = st.text_input("RG do Tutor(a) (opcional):")
-        cep = st.text_input("CEP do Tutor(a):")
-        endereco = buscar_endereco_via_cep(cep)
-        endereco_formatado = f"{endereco.get('logradouro', '')}, {endereco.get('bairro', '')}, {endereco.get('localidade', '')}, {endereco.get('uf', '')}"
 
-        st.subheader("Medicamentos")
+        st.write("---")
+        # Medicamentos
         qtd_med = st.text_input("Quantidade do Medicamento:")
         nome_med = st.text_input("Nome do Medicamento:")
         if st.button("Adicionar Medicamento"):
-            st.session_state.lista_medicamentos.append({"quantidade": qtd_med, "nome": nome_med})
-            st.success("Medicamento adicionado!")
+            if qtd_med and nome_med:
+                st.session_state.lista_medicamentos.append({
+                    "quantidade": qtd_med,
+                    "nome": nome_med
+                })
+                st.success("Medicamento adicionado!")
+            else:
+                st.warning("Informe quantidade e nome do medicamento.")
 
         st.write("Medicamentos Adicionados:")
         for i, med in enumerate(st.session_state.lista_medicamentos, start=1):
             st.write(f"{i}) QTD: {med['quantidade']} - MEDICAMENTO: {med['nome']}")
 
-        st.subheader("Instruções de Uso")
+        st.write("---")
+        # Instruções de Uso
         instrucoes_uso = st.text_area("Digite as instruções de uso:")
 
+        # Botão Gerar
         if st.button("Gerar Receita"):
-            # Carregamos as imagens do fundo/assinatura do usuário atual (se houver)
+            # Preparar dados para o PDF
             imagem_fundo = usuario_atual.get("fundo")
             imagem_assinatura = usuario_atual.get("assinatura")
+            nome_vet = usuario_atual.get("nome_vet") or ""
+            crmv = usuario_atual.get("crmv") or ""
 
+            # Gera PDF
             nome_pdf = gerar_pdf_receita(
                 paciente=paciente,
                 tutor=tutor,
                 cpf=cpf,
-                rg=rg,
-                endereco_formatado=endereco_formatado,
+                rg=st.session_state.rg,
+                endereco_formatado=st.session_state.endereco,
                 especie_raca=especie_raca,
                 pelagem=pelagem,
                 peso=peso,
@@ -455,7 +646,9 @@ def main():
                 lista_medicamentos=st.session_state.lista_medicamentos,
                 instrucoes_uso=instrucoes_uso,
                 imagem_fundo=imagem_fundo,
-                imagem_assinatura=imagem_assinatura
+                imagem_assinatura=imagem_assinatura,
+                nome_vet=nome_vet,
+                crmv=crmv
             )
             with open(nome_pdf, "rb") as f:
                 st.download_button(
