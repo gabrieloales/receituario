@@ -9,6 +9,14 @@ from reportlab.lib.units import cm
 from reportlab.lib import colors
 import streamlit as st
 
+# Dados de login do administrador
+ADMIN_LOGIN = "larsen"
+ADMIN_SENHA = "31415962Isa@"
+
+# Função para verificar o login
+def verificar_login(login, senha):
+    return login == ADMIN_LOGIN and senha == ADMIN_SENHA
+
 # Função para formatar CPF
 def formatar_cpf(cpf_str: str) -> str:
     digits = re.sub(r'\D', '', cpf_str)
@@ -149,6 +157,23 @@ def gerar_pdf_receita(
 # Interface do Streamlit
 def main():
     st.title("Gerador de Receituário Veterinário")
+
+    # Verifica se o usuário está autenticado
+    if "autenticado" not in st.session_state:
+        st.session_state.autenticado = False
+
+    # Tela de login
+    if not st.session_state.autenticado:
+        st.subheader("Login")
+        login = st.text_input("Login:")
+        senha = st.text_input("Senha:", type="password")
+        if st.button("Entrar"):
+            if verificar_login(login, senha):
+                st.session_state.autenticado = True
+                st.success("Login bem-sucedido!")
+            else:
+                st.error("Login ou senha incorretos.")
+        return  # Impede o acesso ao restante do aplicativo se não estiver autenticado
 
     # Inicializa a lista de medicamentos no session_state
     if "lista_medicamentos" not in st.session_state:
