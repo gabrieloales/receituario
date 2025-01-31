@@ -346,7 +346,7 @@ def gerar_pdf_receita(
     # Rodapé: Assinatura, Data, Nome, CRMV
     # Posição 4 cm à esquerda do centro (shifted 2 cm mais à esquerda)
     x_centro_rodape = (largura / 2) - 4 * cm  # Original: -2 cm, agora -4 cm
-    # Posição 4 cm mais baixo (2 cm mais próximo da assinatura)
+    # Posição 6 cm no rodapé, movendo 2 cm para cima
     y_rodape = 6 * cm  # Original: 4 cm, agora 6 cm
 
     # Desenha a imagem da assinatura (se existir)
@@ -705,8 +705,10 @@ def main():
             nome_vet = usuario_atual.get("nome_vet") or ""
             crmv = usuario_atual.get("crmv") or ""
 
-            # Nome do PDF (pode personalizar)
-            nome_pdf = f"{paciente.replace(' ', '_')}_receita.pdf"
+            # Nome do PDF (personalizado)
+            # Sanitiza o CPF para remover caracteres inválidos no nome do arquivo
+            cpf_sanitizado = re.sub(r'\D', '', cpf)
+            nome_pdf = f"{paciente.replace(' ', '_')} - {cpf_sanitizado}.pdf"
 
             # Gera PDF
             nome_pdf = gerar_pdf_receita(
@@ -739,9 +741,9 @@ def main():
                     mime="application/pdf"
                 )
 
-    # ----------------------------------
-    # NAVEGAÇÃO ENTRE AS TELAS
-    # ----------------------------------
+# ----------------------------------
+# NAVEGAÇÃO ENTRE AS TELAS
+# ----------------------------------
     if escolha == "Gerar Receita":
         tela_receita()
     elif escolha == "Meu Perfil":
