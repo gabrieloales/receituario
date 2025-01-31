@@ -239,12 +239,12 @@ def gerar_pdf_receita(
     # ----- Configurações de Posição -----
     config_posicoes = {
         "assinatura_x": (largura / 2) - 4 * cm,  # 4 cm à esquerda do centro
-        "assinatura_y": 8 * cm,                 # 8 cm do fundo
+        "assinatura_y": 6.3 * cm,                 # 8 cm do fundo
         "assinatura_width": 4 * cm,
         "assinatura_height": 1.5 * cm,
-        "data_y": 7.8 * cm,  # Aproximadamente logo abaixo da assinatura
-        "mv_y": 7.3 * cm,
-        "crmv_y": 6.8 * cm
+        "data_y": 5.8 * cm,  # Aproximadamente logo abaixo da assinatura
+        "mv_y": 5.3 * cm,
+        "crmv_y": 4.8 * cm
     }
 
     # ----- Inserção da Imagem de Fundo -----
