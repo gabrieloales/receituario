@@ -523,8 +523,6 @@ def tela_receita():
                     endereco_formatado += f" - CEP: {cep_formatado}"
                 else:
                     st.warning("CEP inválido. Deve estar no formato 12345-678.")
-    # Aqui usamos os widgets sem atribuí-los diretamente ao session_state,
-    # pois o próprio Streamlit gerencia o valor via a key.
     paciente = st.text_input("Nome do Paciente:", key="paciente")
     especie_raca = st.text_input("Espécie - Raça:", key="especie_raca")
     pelagem = st.text_input("Pelagem:", key="pelagem")
@@ -534,7 +532,6 @@ def tela_receita():
     chip = st.text_input("Número do Chip (se houver):", key="chip")
     tutor = st.text_input("Nome do Tutor(a):", key="tutor")
     cpf = st.text_input("CPF do Tutor(a):", key="cpf")
-
     with st.form(key='form_medicamentos', clear_on_submit=False):
         qtd_med = st.text_input("Quantidade do Medicamento:", key="qtd_med")
         nome_med = st.text_input("Nome do Medicamento:", key="nome_med")
@@ -550,7 +547,6 @@ def tela_receita():
                 st.success("Medicamento adicionado!")
             else:
                 st.warning("Informe quantidade e nome do medicamento.")
-
     st.write("### Medicamentos Adicionados:")
     if st.session_state.lista_medicamentos:
         for i, med in enumerate(st.session_state.lista_medicamentos, start=1):
@@ -561,10 +557,8 @@ def tela_receita():
             st.write(texto_med)
     else:
         st.write("Nenhum medicamento adicionado.")
-
     instrucoes_uso = st.text_area("Digite as instruções de uso:", key="instrucoes_uso")
     data_receita = st.date_input("Data da Receita:", value=datetime.date.today(), help="Selecione a data da receita. O padrão é a data atual.", key="data_receita")
-
     if st.button("Gerar Receita"):
         if eh_controlado == "Sim":
             if not rg:
@@ -588,7 +582,6 @@ def tela_receita():
             if not re.fullmatch(r'\d{5}-\d{3}', cep_formatado):
                 st.error("CEP inválido. Deve estar no formato 12345-678.")
                 return
-
         imagem_fundo = st.session_state.usuario_logado.get("fundo")
         imagem_assinatura = st.session_state.usuario_logado.get("assinatura")
         nome_vet = st.session_state.usuario_logado.get("nome_vet") or ""
@@ -644,8 +637,7 @@ def tela_receita():
         st.success("Prescrição gerada e adicionada ao histórico com sucesso!")
         # Reset dos campos após gerar a receita
         st.session_state.lista_medicamentos = []
-        # Para os demais campos, como usamos widgets com key, basta definir valores padrão ou deixar o widget gerenciá-los
-        st.experimental_rerun()
+        # Os demais valores serão reiniciados conforme os valores padrão dos widgets (via key)
 
 def tela_historico():
     st.subheader("Histórico de Prescrições")
