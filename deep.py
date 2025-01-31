@@ -420,6 +420,7 @@ def gerar_pdf_receita(
 # INTERFACE PRINCIPAL (STREAMLIT)
 # ----------------------------------------------
 def main():
+    st.set_page_config(layout="wide")  # Permite uso mais flexível do layout
     st.title("Gerador de Receituário Veterinário")
 
     # Verifica se o usuário está autenticado
@@ -448,348 +449,385 @@ def main():
 
     # Se chegou aqui, está autenticado
     usuario_atual = st.session_state.usuario_logado
-    st.write(f"Usuário logado: **{usuario_atual['login']}**")
 
     # ----------------------------------
-    # BOTÃO PARA SAIR
+    # BOTÕES DE NAVEGAÇÃO
     # ----------------------------------
-    if st.button("Sair"):
-        # Redefine as variáveis de estado
-        st.session_state.autenticado = False
-        st.session_state.usuario_logado = None
-        # Redefine quaisquer outras variáveis de sessão que possam existir
-        # Por exemplo, limpar a lista de medicamentos
-        if "lista_medicamentos" in st.session_state:
-            del st.session_state.lista_medicamentos
-        # Informar o usuário sobre o logout bem-sucedido
-        st.success("Logout realizado com sucesso!")
-        # Não usar st.experimental_rerun(), pois isso está causando o erro
-        # O Streamlit já reexecuta o script após a interação
+    st.sidebar.empty()  # Remove qualquer conteúdo anterior na sidebar
+
+    # Container para os botões de navegação
+    with st.container():
+        st.markdown("### Menu")
+        # Cria uma coluna para cada botão
+        col1, col2, col3 = st.columns([1, 1, 1])
+
+        with col1:
+            if st.button("Criar Receituário"):
+                st.session_state.current_page = "Criar Receituário"
+
+        with col2:
+            if st.button("Meu Perfil"):
+                st.session_state.current_page = "Meu Perfil"
+
+        with col3:
+            if usuario_atual["is_admin"]:
+                if st.button("Administração de Usuários"):
+                    st.session_state.current_page = "Administração de Usuários"
+
+    # Definir página atual se ainda não estiver definida
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = "Criar Receituário"
 
     # ----------------------------------
-    # MENU LATERAL
+    # EXIBIR A PÁGINA CORRESPONDENTE
     # ----------------------------------
-    menu = ["Gerar Receita", "Meu Perfil"]
-    if usuario_atual["is_admin"]:
-        menu.append("Administração de Usuários")
-
-    escolha = st.sidebar.selectbox("Menu", menu)
+    if st.session_state.current_page == "Criar Receituário":
+        tela_receita()
+    elif st.session_state.current_page == "Meu Perfil":
+        tela_perfil()
+    elif st.session_state.current_page == "Administração de Usuários":
+        tela_admin()
 
     # ----------------------------------
-    # FUNÇÕES DE TELA
+    # POSICIONAMENTO DE "USUÁRIO LOGADO" E "SAIR"
     # ----------------------------------
-    def tela_admin():
-        st.subheader("Administração de Usuários")
+    # Adiciona espaçamento vertical para empurrar os elementos para baixo
+    st.write("\n" * 10)
 
-        st.write("### Usuários Existentes:")
-        usuarios = carregar_usuarios()
-        if usuarios:
-            for u, data in usuarios.items():
-                st.write(f"- **Login**: {u} | Admin: {data.get('is_admin', False)} | Nome Vet: {data.get('nome_vet', 'Não definido')} | CRMV: {data.get('crmv', 'Não definido')}")
+    # Cria uma coluna para alinhar "Usuário logado:" e "Sair" à esquerda
+    col1, col2, col3 = st.columns([1, 10, 1])
+    with col1:
+        st.write(f"**Usuário logado:** {usuario_atual['login']}")
+        if st.button("Sair"):
+            # Redefine as variáveis de estado
+            st.session_state.autenticado = False
+            st.session_state.usuario_logado = None
+            # Limpa outras variáveis de sessão se existirem
+            if "lista_medicamentos" in st.session_state:
+                del st.session_state.lista_medicamentos
+            if "current_page" in st.session_state:
+                del st.session_state.current_page
+            st.success("Logout realizado com sucesso!")
+            # O Streamlit automaticamente reexecuta o script após a interação
+
+    # ----------------------------------
+    # REMOVER Duplicação de Navegação
+    # ----------------------------------
+    # Não há necessidade de verificar novamente o 'current_page' aqui
+
+# ----------------------------------------------
+# FUNÇÕES DE TELA
+# ----------------------------------------------
+def tela_admin():
+    st.subheader("Administração de Usuários")
+
+    st.write("### Usuários Existentes:")
+    usuarios = carregar_usuarios()
+    if usuarios:
+        for u, data in usuarios.items():
+            st.write(f"- **Login**: {u} | Admin: {data.get('is_admin', False)} | Nome Vet: {data.get('nome_vet', 'Não definido')} | CRMV: {data.get('crmv', 'Não definido')}")
+    else:
+        st.write("Não há usuários cadastrados no arquivo.")
+
+    st.write("---")
+    st.write("### Cadastrar/Atualizar Usuário")
+    novo_login = st.text_input("Login do Usuário", key="novo_login")
+    nova_senha = st.text_input("Senha do Usuário", type="password", key="nova_senha")
+    admin_flag = st.checkbox("Usuário é administrador?", key="admin_flag")
+    nome_vet = st.text_input("Nome do(a) Veterinário(a)", key="nome_vet")
+    crmv = st.text_input("CRMV (somente números ou ex: 12345)", key="crmv")
+    if st.button("Cadastrar/Atualizar Usuário"):
+        if novo_login and nova_senha and nome_vet and crmv:
+            cadastrar_usuario(novo_login, nova_senha, nome_vet=nome_vet, crmv=crmv, is_admin=admin_flag)
+            st.success(f"Usuário '{novo_login}' cadastrado/atualizado com sucesso!")
+            # Limpa os campos após o cadastro
+            st.session_state.novo_login = ""
+            st.session_state.nova_senha = ""
+            st.session_state.admin_flag = False
+            st.session_state.nome_vet = ""
+            st.session_state.crmv = ""
         else:
-            st.write("Não há usuários cadastrados no arquivo.")
+            st.warning("É necessário preencher login, senha, nome do(a) veterinário(a) e CRMV.")
 
-        st.write("---")
-        st.write("### Cadastrar/Atualizar Usuário")
-        novo_login = st.text_input("Login do Usuário", key="novo_login")
-        nova_senha = st.text_input("Senha do Usuário", type="password", key="nova_senha")
-        admin_flag = st.checkbox("Usuário é administrador?", key="admin_flag")
-        nome_vet = st.text_input("Nome do(a) Veterinário(a)", key="nome_vet")
-        crmv = st.text_input("CRMV (somente números ou ex: 12345)", key="crmv")
-        if st.button("Cadastrar/Atualizar Usuário"):
-            if novo_login and nova_senha and nome_vet and crmv:
-                cadastrar_usuario(novo_login, nova_senha, nome_vet=nome_vet, crmv=crmv, is_admin=admin_flag)
-                st.success(f"Usuário '{novo_login}' cadastrado/atualizado com sucesso!")
-                # Limpa os campos após o cadastro
-                st.session_state.novo_login = ""
-                st.session_state.nova_senha = ""
-                st.session_state.admin_flag = False
-                st.session_state.nome_vet = ""
-                st.session_state.crmv = ""
-            else:
-                st.warning("É necessário preencher login, senha, nome do(a) veterinário(a) e CRMV.")
+    st.write("---")
+    st.write("### Remover Usuário")
+    usuario_remover = st.text_input("Login do usuário para remover:", key="usuario_remover")
+    if st.button("Remover"):
+        if usuario_remover:
+            remover_usuario(usuario_remover)
+            st.success(f"Usuário '{usuario_remover}' removido com sucesso!")
+            # Limpa o campo após a remoção
+            st.session_state.usuario_remover = ""
+        else:
+            st.warning("Informe o login do usuário a ser removido.")
 
-        st.write("---")
-        st.write("### Remover Usuário")
-        usuario_remover = st.text_input("Login do usuário para remover:", key="usuario_remover")
-        if st.button("Remover"):
-            if usuario_remover:
-                remover_usuario(usuario_remover)
-                st.success(f"Usuário '{usuario_remover}' removido com sucesso!")
-                # Limpa o campo após a remoção
-                st.session_state.usuario_remover = ""
-            else:
-                st.warning("Informe o login do usuário a ser removido.")
+def tela_perfil():
+    st.subheader("Meu Perfil")
+    st.write("Aqui você pode configurar apenas as imagens de fundo e assinatura.")
 
-    def tela_perfil():
-        st.subheader("Meu Perfil")
-        st.write("Aqui você pode configurar apenas as imagens de fundo e assinatura.")
+    # Pasta do usuário
+    user_folder = os.path.join(USER_FILES_DIR, st.session_state.usuario_logado["login"])
+    if not os.path.exists(user_folder):
+        os.makedirs(user_folder)
 
-        # Pasta do usuário
-        user_folder = os.path.join(USER_FILES_DIR, usuario_atual["login"])
-        if not os.path.exists(user_folder):
-            os.makedirs(user_folder)
+    # Upload de imagem de fundo
+    fundo_file = st.file_uploader("Upload da Imagem de Fundo (opcional)", type=["png", "jpg", "jpeg"], key="fundo_file")
+    if fundo_file is not None:
+        fundo_path = os.path.join(user_folder, "fundo_" + fundo_file.name)
+        with open(fundo_path, "wb") as f:
+            f.write(fundo_file.getvalue())
+        atualizar_imagem_usuario(st.session_state.usuario_logado["login"], fundo_path, tipo="fundo")
+        st.success("Imagem de fundo atualizada com sucesso!")
+        st.session_state.usuario_logado["fundo"] = fundo_path
 
-        # Upload de imagem de fundo
-        fundo_file = st.file_uploader("Upload da Imagem de Fundo (opcional)", type=["png", "jpg", "jpeg"], key="fundo_file")
-        if fundo_file is not None:
-            fundo_path = os.path.join(user_folder, "fundo_" + fundo_file.name)
-            with open(fundo_path, "wb") as f:
-                f.write(fundo_file.getvalue())
-            atualizar_imagem_usuario(usuario_atual["login"], fundo_path, tipo="fundo")
-            st.success("Imagem de fundo atualizada com sucesso!")
-            usuario_atual["fundo"] = fundo_path
+    # Upload de assinatura
+    assinatura_file = st.file_uploader("Upload da Assinatura (opcional)", type=["png", "jpg", "jpeg"], key="assinatura_file")
+    if assinatura_file is not None:
+        assinatura_path = os.path.join(user_folder, "assinatura_" + assinatura_file.name)
+        with open(assinatura_path, "wb") as f:
+            f.write(assinatura_file.getvalue())
+        atualizar_imagem_usuario(st.session_state.usuario_logado["login"], assinatura_path, tipo="assinatura")
+        st.success("Assinatura atualizada com sucesso!")
+        st.session_state.usuario_logado["assinatura"] = assinatura_path
 
-        # Upload de assinatura
-        assinatura_file = st.file_uploader("Upload da Assinatura (opcional)", type=["png", "jpg", "jpeg"], key="assinatura_file")
-        if assinatura_file is not None:
-            assinatura_path = os.path.join(user_folder, "assinatura_" + assinatura_file.name)
-            with open(assinatura_path, "wb") as f:
-                f.write(assinatura_file.getvalue())
-            atualizar_imagem_usuario(usuario_atual["login"], assinatura_path, tipo="assinatura")
-            st.success("Assinatura atualizada com sucesso!")
-            usuario_atual["assinatura"] = assinatura_path
+    st.write("---")
+    st.write("**Imagem de fundo atual**:", os.path.basename(st.session_state.usuario_logado.get("fundo")) if st.session_state.usuario_logado.get("fundo") else "Nenhuma")
+    st.write("**Assinatura atual**:", os.path.basename(st.session_state.usuario_logado.get("assinatura")) if st.session_state.usuario_logado.get("assinatura") else "Nenhuma")
+    st.write("**Nome Vet:**", st.session_state.usuario_logado.get("nome_vet") or "Não definido")
+    st.write("**CRMV:**", st.session_state.usuario_logado.get("crmv") or "Não definido")
 
-        st.write("---")
-        st.write("**Imagem de fundo atual**:", os.path.basename(usuario_atual.get("fundo")) if usuario_atual.get("fundo") else "Nenhuma")
-        st.write("**Assinatura atual**:", os.path.basename(usuario_atual.get("assinatura")) if usuario_atual.get("assinatura") else "Nenhuma")
-        st.write("**Nome Vet:**", usuario_atual.get("nome_vet") or "Não definido")
-        st.write("**CRMV:**", usuario_atual.get("crmv") or "Não definido")
+def tela_receita():
+    st.subheader("Criar Receituário")
 
-    def tela_receita():
-        st.subheader("Gerar Receituário")
+    # Inicializa a lista de medicamentos no session_state
+    if "lista_medicamentos" not in st.session_state:
+        st.session_state.lista_medicamentos = []
 
-        # Inicializa a lista de medicamentos no session_state
-        if "lista_medicamentos" not in st.session_state:
-            st.session_state.lista_medicamentos = []
-        # Caso queira limpar sempre, poderíamos fazer:
-        # else:
-        #     st.session_state.lista_medicamentos = []
+    # Escolha do Tipo de Farmácia
+    opcoes_farmacia = [
+        "FARMÁCIA VETERINÁRIA",
+        "FARMÁCIA HUMANA",
+        "FARMÁCIA DE MANIPULAÇÃO - VETERINÁRIA",
+        "FARMÁCIA DE MANIPULAÇÃO - HUMANO"
+    ]
+    tipo_farmacia = st.selectbox("Selecione o tipo de Farmácia:", opcoes_farmacia)
 
-        # Escolha do Tipo de Farmácia
-        opcoes_farmacia = [
-            "FARMÁCIA VETERINÁRIA",
-            "FARMÁCIA HUMANA",
-            "FARMÁCIA DE MANIPULAÇÃO - VETERINÁRIA",
-            "FARMÁCIA DE MANIPULAÇÃO - HUMANO"
-        ]
-        tipo_farmacia = st.selectbox("Selecione o tipo de Farmácia:", opcoes_farmacia)
+    # Pergunta se é medicamento controlado
+    eh_controlado = st.radio("Medicamento Controlado?", ("Não", "Sim"))
 
-        # Pergunta se é medicamento controlado
-        eh_controlado = st.radio("Medicamento Controlado?", ("Não", "Sim"))
+    # Se for controlado, RG e CEP/Endereço são necessários
+    rg = ""
+    endereco_formatado = ""
 
-        # Se for controlado, RG e CEP/Endereço são necessários
-        rg = ""
-        endereco_formatado = ""
+    if eh_controlado == "Sim":
+        rg = st.text_input("RG do Tutor(a):")
 
-        if eh_controlado == "Sim":
-            rg = st.text_input("RG do Tutor(a):")
+        st.write("### Preenchimento do Endereço")
+        # Escolha entre Automático ou Manual
+        modo_endereco = st.radio(
+            "Escolha a forma de preenchimento do endereço:",
+            ("Automático (via CEP)", "Manual")
+        )
 
-            st.write("### Preenchimento do Endereço")
-            # Escolha entre Automático ou Manual
-            modo_endereco = st.radio(
-                "Escolha a forma de preenchimento do endereço:",
-                ("Automático (via CEP)", "Manual")
+        if modo_endereco == "Automático (via CEP)":
+            # CEP - busca automática
+            if "cep_tutor" not in st.session_state:
+                st.session_state.cep_tutor = ""
+            if "end_busca" not in st.session_state:
+                st.session_state.end_busca = {}  # dicionário com logradouro, bairro, etc.
+
+            cep_digitado = st.text_input(
+                "CEP do Tutor(a):",
+                value=st.session_state.cep_tutor,
+                help="Digite o CEP sem hífen, por exemplo: 12345678"
             )
 
-            if modo_endereco == "Automático (via CEP)":
-                # CEP - busca automática
-                if "cep_tutor" not in st.session_state:
-                    st.session_state.cep_tutor = ""
-                if "end_busca" not in st.session_state:
-                    st.session_state.end_busca = {}  # dicionário com logradouro, bairro, etc.
+            # Se o CEP mudou, tentamos buscar novamente
+            if cep_digitado != st.session_state.cep_tutor:
+                st.session_state.cep_tutor = cep_digitado
+                if re.fullmatch(r'\d{8}', cep_digitado):
+                    dados_end = buscar_endereco_via_cep(cep_digitado)
+                    st.session_state.end_busca = dados_end
+                    if dados_end:
+                        st.success(f"Endereço encontrado: {dados_end.get('logradouro')}, {dados_end.get('bairro')}, {dados_end.get('localidade')}-{dados_end.get('uf')}")
+                    else:
+                        st.warning("CEP não encontrado. Por favor, preencha o endereço manualmente ou verifique o CEP.")
+                elif cep_digitado.strip():
+                    st.warning("CEP inválido. Deve conter exatamente 8 dígitos.")
 
-                cep_digitado = st.text_input(
-                    "CEP do Tutor(a):",
-                    value=st.session_state.cep_tutor,
-                    help="Digite o CEP sem hífen, por exemplo: 12345678"
-                )
+            dados_cep = st.session_state.end_busca if st.session_state.end_busca else {}
+            if dados_cep:
+                logradouro = dados_cep.get("logradouro", "")
+                bairro = dados_cep.get("bairro", "")
+                cidade = dados_cep.get("localidade", "")
+                uf = dados_cep.get("uf", "")
+                numero = st.text_input("Número:")
+                complemento = st.text_input("Complemento (opcional):")
+                endereco_formatado = f"{logradouro}, {numero}, {bairro}, {cidade}-{uf}"
+                if complemento:
+                    endereco_formatado += f" (Compl.: {complemento})"
+                if re.fullmatch(r'\d{5}-\d{3}', formatar_cep(cep_digitado)):
+                    endereco_formatado += f" - CEP: {formatar_cep(cep_digitado)}"
+            else:
+                if st.session_state.cep_tutor.strip() and not re.fullmatch(r'\d{8}', st.session_state.cep_tutor):
+                    st.warning("Por favor, preencha os campos de endereço manualmente abaixo.")
 
-                # Se o CEP mudou, tentamos buscar novamente
-                if cep_digitado != st.session_state.cep_tutor:
-                    st.session_state.cep_tutor = cep_digitado
-                    if re.fullmatch(r'\d{8}', cep_digitado):
-                        dados_end = buscar_endereco_via_cep(cep_digitado)
-                        st.session_state.end_busca = dados_end
-                        if dados_end:
-                            st.success(f"Endereço encontrado: {dados_end.get('logradouro')}, {dados_end.get('bairro')}, {dados_end.get('localidade')}-{dados_end.get('uf')}")
-                        else:
-                            st.warning("CEP não encontrado. Por favor, preencha o endereço manualmente ou verifique o CEP.")
-                    elif cep_digitado.strip():
-                        st.warning("CEP inválido. Deve conter exatamente 8 dígitos.")
+        else:
+            # Preenchimento Manual
+            rua = st.text_input("Rua:")
+            numero = st.text_input("Número:")
+            bairro = st.text_input("Bairro:")
+            cidade = st.text_input("Cidade:")
+            uf = st.text_input("Estado:")
+            cep_manual = st.text_input(
+                "CEP:",
+                help="Digite o CEP no formato 12345-678"
+            )
+            complemento = st.text_input("Complemento (opcional):")
 
-                dados_cep = st.session_state.end_busca if st.session_state.end_busca else {}
-                if dados_cep:
-                    logradouro = dados_cep.get("logradouro", "")
-                    bairro = dados_cep.get("bairro", "")
-                    cidade = dados_cep.get("localidade", "")
-                    uf = dados_cep.get("uf", "")
-                    numero = st.text_input("Número:")
-                    complemento = st.text_input("Complemento (opcional):")
-                    endereco_formatado = f"{logradouro}, {numero}, {bairro}, {cidade}-{uf}"
+            if cep_manual:
+                cep_formatado = formatar_cep(cep_manual)
+                if re.fullmatch(r'\d{5}-\d{3}', cep_formatado):
+                    endereco_formatado = f"{rua}, {numero}, {bairro}, {cidade}-{uf}"
                     if complemento:
                         endereco_formatado += f" (Compl.: {complemento})"
-                    if re.fullmatch(r'\d{5}-\d{3}', formatar_cep(cep_digitado)):
-                        endereco_formatado += f" - CEP: {formatar_cep(cep_digitado)}"
+                    endereco_formatado += f" - CEP: {cep_formatado}"
                 else:
-                    if st.session_state.cep_tutor.strip() and not re.fullmatch(r'\d{8}', st.session_state.cep_tutor):
-                        st.warning("Por favor, preencha os campos de endereço manualmente abaixo.")
+                    st.warning("CEP inválido. Deve estar no formato 12345-678.")
 
+    # Dados do Paciente
+    st.write("---")
+    paciente = st.text_input("Nome do Paciente:")
+    especie_raca = st.text_input("Espécie - Raça:")
+    pelagem = st.text_input("Pelagem:")
+    peso = st.text_input("Peso:")
+    idade = st.text_input("Idade:")
+    sexo = st.radio("Sexo:", ("Macho", "Fêmea"))
+    chip = st.text_input("Número do Chip (se houver):")
+
+    # Dados do Tutor
+    st.write("---")
+    tutor = st.text_input("Nome do Tutor(a):")
+    cpf = st.text_input("CPF do Tutor(a):")
+
+    # Medicamentos
+    st.write("---")
+    with st.form(key='form_medicamentos', clear_on_submit=False):
+        qtd_med = st.text_input("Quantidade do Medicamento:")
+        nome_med = st.text_input("Nome do Medicamento:")
+        conc_med = st.text_input("Concentração do Medicamento (ex: 500mg, 200mg/ml):")
+        submit_med = st.form_submit_button("Adicionar Medicamento")
+        if submit_med:
+            if qtd_med and nome_med:
+                st.session_state.lista_medicamentos.append({
+                    "quantidade": qtd_med,
+                    "nome": nome_med,
+                    "concentracao": conc_med
+                })
+                st.success("Medicamento adicionado!")
             else:
-                # Preenchimento Manual
-                rua = st.text_input("Rua:")
-                numero = st.text_input("Número:")
-                bairro = st.text_input("Bairro:")
-                cidade = st.text_input("Cidade:")
-                uf = st.text_input("Estado:")
-                cep_manual = st.text_input(
-                    "CEP:",
-                    help="Digite o CEP no formato 12345-678"
-                )
-                complemento = st.text_input("Complemento (opcional):")
+                st.warning("Informe quantidade e nome do medicamento.")
 
-                if cep_manual:
-                    cep_formatado = formatar_cep(cep_manual)
-                    if re.fullmatch(r'\d{5}-\d{3}', cep_formatado):
-                        endereco_formatado = f"{rua}, {numero}, {bairro}, {cidade}-{uf}"
-                        if complemento:
-                            endereco_formatado += f" (Compl.: {complemento})"
-                        endereco_formatado += f" - CEP: {cep_formatado}"
-                    else:
-                        st.warning("CEP inválido. Deve estar no formato 12345-678.")
+    st.write("### Medicamentos Adicionados:")
+    if st.session_state.lista_medicamentos:
+        for i, med in enumerate(st.session_state.lista_medicamentos, start=1):
+            conc = med.get('concentracao', '')
+            texto_med = f"{i}) QTD: {med['quantidade']} - MEDICAMENTO: {med['nome']}"
+            if conc:
+                texto_med += f" - CONCENTRAÇÃO: {conc}"
+            st.write(texto_med)
+    else:
+        st.write("Nenhum medicamento adicionado.")
 
-        # Dados do Paciente
-        st.write("---")
-        paciente = st.text_input("Nome do Paciente:")
-        especie_raca = st.text_input("Espécie - Raça:")
-        pelagem = st.text_input("Pelagem:")
-        peso = st.text_input("Peso:")
-        idade = st.text_input("Idade:")
-        sexo = st.radio("Sexo:", ("Macho", "Fêmea"))
-        chip = st.text_input("Número do Chip (se houver):")
+    # Instruções de Uso
+    st.write("---")
+    instrucoes_uso = st.text_area("Digite as instruções de uso:")
 
-        # Dados do Tutor
-        st.write("---")
-        tutor = st.text_input("Nome do Tutor(a):")
-        cpf = st.text_input("CPF do Tutor(a):")
-
-        # Medicamentos
-        st.write("---")
-        with st.form(key='form_medicamentos', clear_on_submit=False):
-            qtd_med = st.text_input("Quantidade do Medicamento:")
-            nome_med = st.text_input("Nome do Medicamento:")
-            conc_med = st.text_input("Concentração do Medicamento (ex: 500mg, 200mg/ml):")
-            submit_med = st.form_submit_button("Adicionar Medicamento")
-            if submit_med:
-                if qtd_med and nome_med:
-                    st.session_state.lista_medicamentos.append({
-                        "quantidade": qtd_med,
-                        "nome": nome_med,
-                        "concentracao": conc_med
-                    })
-                    st.success("Medicamento adicionado!")
-                else:
-                    st.warning("Informe quantidade e nome do medicamento.")
-
-        st.write("### Medicamentos Adicionados:")
-        if st.session_state.lista_medicamentos:
-            for i, med in enumerate(st.session_state.lista_medicamentos, start=1):
-                conc = med.get('concentracao', '')
-                texto_med = f"{i}) QTD: {med['quantidade']} - MEDICAMENTO: {med['nome']}"
-                if conc:
-                    texto_med += f" - CONCENTRAÇÃO: {conc}"
-                st.write(texto_med)
-        else:
-            st.write("Nenhum medicamento adicionado.")
-
-        # Instruções de Uso
-        st.write("---")
-        instrucoes_uso = st.text_area("Digite as instruções de uso:")
-
-        # Gerar Receita
-        if st.button("Gerar Receita"):
-            # Validações necessárias
-            if eh_controlado == "Sim":
-                if not rg:
-                    st.error("RG do Tutor(a) é obrigatório para medicamentos controlados.")
-                    return
-                if not endereco_formatado:
-                    st.error("Endereço do Tutor(a) é obrigatório para medicamentos controlados.")
-                    return
-
-            if not paciente:
-                st.error("Nome do Paciente é obrigatório.")
+    # Gerar Receita
+    if st.button("Gerar Receita"):
+        # Validações necessárias
+        if eh_controlado == "Sim":
+            if not rg:
+                st.error("RG do Tutor(a) é obrigatório para medicamentos controlados.")
                 return
-            if not tutor:
-                st.error("Nome do Tutor(a) é obrigatório.")
+            if not endereco_formatado:
+                st.error("Endereço do Tutor(a) é obrigatório para medicamentos controlados.")
                 return
-            if not cpf:
-                st.error("CPF do Tutor(a) é obrigatório.")
+
+        if not paciente:
+            st.error("Nome do Paciente é obrigatório.")
+            return
+        if not tutor:
+            st.error("Nome do Tutor(a) é obrigatório.")
+            return
+        if not cpf:
+            st.error("CPF do Tutor(a) é obrigatório.")
+            return
+        if eh_controlado == "Sim":
+            # Determinar qual CEP foi utilizado
+            cep_utilizado = cep_manual if 'cep_manual' in locals() and cep_manual else st.session_state.get('cep_tutor', '')
+            cep_formatado = formatar_cep(cep_utilizado)
+            if not re.fullmatch(r'\d{5}-\d{3}', cep_formatado):
+                st.error("CEP inválido. Deve estar no formato 12345-678.")
                 return
-            if eh_controlado == "Sim":
-                # Determinar qual CEP foi utilizado
-                cep_utilizado = cep_manual if 'cep_manual' in locals() and cep_manual else st.session_state.get('cep_tutor', '')
-                cep_formatado = formatar_cep(cep_utilizado)
-                if not re.fullmatch(r'\d{5}-\d{3}', cep_formatado):
-                    st.error("CEP inválido. Deve estar no formato 12345-678.")
-                    return
 
-            # Preparar dados para o PDF
-            imagem_fundo = usuario_atual.get("fundo")
-            imagem_assinatura = usuario_atual.get("assinatura")
-            nome_vet = usuario_atual.get("nome_vet") or ""
-            crmv = usuario_atual.get("crmv") or ""
+        # Preparar dados para o PDF
+        imagem_fundo = st.session_state.usuario_logado.get("fundo")
+        imagem_assinatura = st.session_state.usuario_logado.get("assinatura")
+        nome_vet = st.session_state.usuario_logado.get("nome_vet") or ""
+        crmv = st.session_state.usuario_logado.get("crmv") or ""
 
-            # Nome do PDF (personalizado)
-            # Formata o CPF com pontuação
-            cpf_formatado = formatar_cpf(cpf)
-            # Sanitiza o nome do paciente para evitar caracteres inválidos no nome do arquivo
-            paciente_sanitizado = re.sub(r'[^\w\s-]', '', paciente).strip().replace(' ', '_')
-            nome_pdf = f"{paciente_sanitizado} - {cpf_formatado}.pdf"
+        # Nome do PDF (personalizado)
+        # Formata o CPF com pontuação
+        cpf_formatado = formatar_cpf(cpf)
+        # Sanitiza o nome do paciente para evitar caracteres inválidos no nome do arquivo
+        paciente_sanitizado = re.sub(r'[^\w\s-]', '', paciente).strip().replace(' ', '_')
+        nome_pdf = f"{paciente_sanitizado} - {cpf_formatado}.pdf"
 
-            # Gera PDF
-            nome_pdf = gerar_pdf_receita(
-                nome_pdf=nome_pdf,
-                tipo_farmacia=tipo_farmacia,
-                paciente=paciente,
-                tutor=tutor,
-                cpf=cpf,
-                rg=rg,
-                endereco_formatado=endereco_formatado,
-                especie_raca=especie_raca,
-                pelagem=pelagem,
-                peso=peso,
-                idade=idade,
-                sexo=sexo,
-                chip=chip,
-                lista_medicamentos=st.session_state.lista_medicamentos,
-                instrucoes_uso=instrucoes_uso,
-                imagem_fundo=imagem_fundo,
-                imagem_assinatura=imagem_assinatura,
-                nome_vet=nome_vet,
-                crmv=crmv,
-                data_receita=datetime.datetime.now().strftime("%d/%m/%Y")
+        # Gera PDF
+        nome_pdf = gerar_pdf_receita(
+            nome_pdf=nome_pdf,
+            tipo_farmacia=tipo_farmacia,
+            paciente=paciente,
+            tutor=tutor,
+            cpf=cpf,
+            rg=rg,
+            endereco_formatado=endereco_formatado,
+            especie_raca=especie_raca,
+            pelagem=pelagem,
+            peso=peso,
+            idade=idade,
+            sexo=sexo,
+            chip=chip,
+            lista_medicamentos=st.session_state.lista_medicamentos,
+            instrucoes_uso=instrucoes_uso,
+            imagem_fundo=imagem_fundo,
+            imagem_assinatura=imagem_assinatura,
+            nome_vet=nome_vet,
+            crmv=crmv,
+            data_receita=datetime.datetime.now().strftime("%d/%m/%Y")
+        )
+        with open(nome_pdf, "rb") as f:
+            st.download_button(
+                label="Baixar Receita",
+                data=f,
+                file_name=nome_pdf,
+                mime="application/pdf"
             )
-            with open(nome_pdf, "rb") as f:
-                st.download_button(
-                    label="Baixar Receita",
-                    data=f,
-                    file_name=nome_pdf,
-                    mime="application/pdf"
-                )
 
-# ----------------------------------
+# ----------------------------------------------
 # NAVEGAÇÃO ENTRE AS TELAS
-# ----------------------------------
-    if escolha == "Gerar Receita":
+# ----------------------------------------------
+def main_navigation():
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = "Criar Receituário"
+
+    if st.session_state.current_page == "Criar Receituário":
         tela_receita()
-    elif escolha == "Meu Perfil":
+    elif st.session_state.current_page == "Meu Perfil":
         tela_perfil()
-    elif escolha == "Administração de Usuários":
-        if usuario_atual["is_admin"]:
-            tela_admin()
-        else:
-            st.error("Você não tem permissão para acessar esta área.")
+    elif st.session_state.current_page == "Administração de Usuários":
+        tela_admin()
 
 # ----------------------------------------------
 # INICIALIZAÇÃO
