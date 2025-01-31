@@ -8,7 +8,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.lib import colors
 import streamlit as st
-import pandas as pd  # Importação necessária
+import pandas as pd  # Importação adicionada
 
 # ----------------------------------------------
 # CONSTANTES E CONFIGURAÇÕES
@@ -31,8 +31,7 @@ def carregar_usuarios():
     with open(USERS_FILE, "r", encoding="utf-8") as f:
         try:
             return json.load(f)
-        except json.JSONDecodeError:
-            st.error("Erro ao ler o arquivo de usuários. Verifique a formatação do JSON.")
+        except:
             return {}
 
 def salvar_usuarios(usuarios):
@@ -52,8 +51,8 @@ def verificar_login(login, senha):
             "is_admin": True,
             "fundo": None,
             "assinatura": None,
-            "nome_vet": "ADMINISTRADOR",
-            "crmv": "00000"
+            "nome_vet": None,
+            "crmv": None
         }
 
     # Caso contrário, verifica no arquivo de usuários:
@@ -65,6 +64,7 @@ def verificar_login(login, senha):
             "is_admin": user_data.get("is_admin", False),
             "fundo": user_data.get("background_image"),
             "assinatura": user_data.get("signature_image"),
+            # Novos campos no perfil
             "nome_vet": user_data.get("nome_vet"),
             "crmv": user_data.get("crmv")
         }
@@ -98,9 +98,6 @@ def remover_usuario(login):
         if os.path.exists(user_folder):
             import shutil
             shutil.rmtree(user_folder)
-        st.success(f"Usuário '{login}' removido com sucesso!")
-    else:
-        st.warning(f"Usuário '{login}' não encontrado.")
 
 def atualizar_imagem_usuario(login, image_path, tipo="fundo"):
     """
@@ -109,7 +106,6 @@ def atualizar_imagem_usuario(login, image_path, tipo="fundo"):
     """
     usuarios = carregar_usuarios()
     if login not in usuarios:
-        st.error("Usuário não encontrado.")
         return
 
     if tipo == "fundo":
@@ -118,7 +114,6 @@ def atualizar_imagem_usuario(login, image_path, tipo="fundo"):
         usuarios[login]["signature_image"] = image_path
 
     salvar_usuarios(usuarios)
-    st.success(f"Imagem de {tipo} atualizada com sucesso!")
 
 # ----------------------------------------------
 # FUNÇÕES DE APOIO GERAIS
@@ -191,8 +186,7 @@ def carregar_historico(login):
     with open(historico_path, "r", encoding="utf-8") as f:
         try:
             return json.load(f)
-        except json.JSONDecodeError:
-            st.error("Erro ao ler o histórico. Verifique a formatação do JSON.")
+        except:
             return []
 
 def salvar_historico(login, historico):
@@ -437,6 +431,10 @@ def gerar_pdf_receita(
         except Exception as e:
             st.warning(f"[Aviso] Não foi possível inserir a assinatura: {e}")
 
+    # ----- Campo de Seleção de Data -----
+    # Este campo será preenchido no Streamlit e passado para gerar_pdf_receita
+    # Portanto, já está sendo tratado na função tela_receita()
+
     # ----- Campos "Data", "M. V." e "CRMV" -----
     c.setFont("Helvetica", font_footer)
     c.drawCentredString(x_assinatura, config_posicoes["data_y"], f"CURITIBA, PR, {data_receita}")
@@ -487,6 +485,7 @@ def tela_admin():
     if st.button("Remover"):
         if usuario_remover:
             remover_usuario(usuario_remover)
+            st.success(f"Usuário '{usuario_remover}' removido com sucesso!")
             # Limpa o campo após a remoção
             st.session_state.usuario_remover = ""
         else:
@@ -508,6 +507,7 @@ def tela_perfil():
         with open(fundo_path, "wb") as f:
             f.write(fundo_file.getvalue())
         atualizar_imagem_usuario(st.session_state.usuario_logado["login"], fundo_path, tipo="fundo")
+        st.success("Imagem de fundo atualizada com sucesso!")
         st.session_state.usuario_logado["fundo"] = fundo_path
 
     # Upload de assinatura
@@ -517,6 +517,7 @@ def tela_perfil():
         with open(assinatura_path, "wb") as f:
             f.write(assinatura_file.getvalue())
         atualizar_imagem_usuario(st.session_state.usuario_logado["login"], assinatura_path, tipo="assinatura")
+        st.success("Assinatura atualizada com sucesso!")
         st.session_state.usuario_logado["assinatura"] = assinatura_path
 
     st.write("---")
@@ -686,27 +687,27 @@ def tela_receita():
         if eh_controlado == "Sim":
             if not rg:
                 st.error("RG do Tutor(a) é obrigatório para medicamentos controlados.")
-                st.stop()
+                return
             if not endereco_formatado:
                 st.error("Endereço do Tutor(a) é obrigatório para medicamentos controlados.")
-                st.stop()
+                return
 
         if not paciente:
             st.error("Nome do Paciente é obrigatório.")
-            st.stop()
+            return
         if not tutor:
             st.error("Nome do Tutor(a) é obrigatório.")
-            st.stop()
+            return
         if not cpf:
             st.error("CPF do Tutor(a) é obrigatório.")
-            st.stop()
+            return
         if eh_controlado == "Sim":
             # Determinar qual CEP foi utilizado
             cep_utilizado = cep_manual if 'cep_manual' in locals() and cep_manual else st.session_state.get('cep_tutor', '')
             cep_formatado = formatar_cep(cep_utilizado)
             if not re.fullmatch(r'\d{5}-\d{3}', cep_formatado):
                 st.error("CEP inválido. Deve estar no formato 12345-678.")
-                st.stop()
+                return
 
         # Preparar dados para o PDF
         imagem_fundo = st.session_state.usuario_logado.get("fundo")
@@ -755,16 +756,14 @@ def tela_receita():
                 mime="application/pdf"
             )
 
-        # Salvar no Histórico com Detalhes Completos
+        # Salvar no Histórico
         historico = carregar_historico(st.session_state.usuario_logado["login"])
         historico.append({
             "Nome do Paciente": paciente,
             "CPF do Tutor": formatar_cpf(cpf),
             "Nome do Tutor": tutor,
             "Medicamento Controlado": "Sim" if eh_controlado == "Sim" else "Não",
-            "Data Emitida": data_receita_str,
-            "Lista de Medicamentos": st.session_state.lista_medicamentos,  # Adicionado
-            "Instruções de Uso": instrucoes_uso  # Adicionado
+            "Data Emitida": data_receita_str
         })
         salvar_historico(st.session_state.usuario_logado["login"], historico)
         st.success("Prescrição gerada e adicionada ao histórico com sucesso!")
@@ -780,35 +779,14 @@ def tela_historico():
         st.info("Nenhuma prescrição encontrada no histórico.")
         return
 
-    # Ordena o histórico por data emitida descendente
-    historico_sorted = sorted(
-        historico,
-        key=lambda x: datetime.datetime.strptime(x['Data Emitida'], "%d/%m/%Y"),
-        reverse=True
-    )
+    # Exibe o histórico em uma tabela
+    df_historico = pd.DataFrame(historico)
+    # Ordena por data emitida descendente
+    df_historico['Data Emitida'] = pd.to_datetime(df_historico['Data Emitida'], format="%d/%m/%Y")
+    df_historico = df_historico.sort_values(by='Data Emitida', ascending=False)
+    df_historico['Data Emitida'] = df_historico['Data Emitida'].dt.strftime("%d/%m/%Y")
 
-    for idx, entry in enumerate(historico_sorted, start=1):
-        st.markdown(f"### Prescrição {idx}")
-        col1, col2 = st.columns([3, 1])
-
-        with col1:
-            st.write(f"**Nome do Paciente:** {entry['Nome do Paciente']}")
-            st.write(f"**CPF do Tutor:** {entry['CPF do Tutor']}")
-            st.write(f"**Nome do Tutor:** {entry['Nome do Tutor']}")
-            st.write(f"**Medicamento Controlado:** {entry['Medicamento Controlado']}")
-            st.write(f"**Data Emitida:** {entry['Data Emitida']}")
-
-        with col2:
-            with st.expander("Ver Detalhes"):
-                st.write("**Lista de Medicamentos:**")
-                for med_idx, med in enumerate(entry['Lista de Medicamentos'], start=1):
-                    st.write(f"{med_idx}. **Quantidade:** {med['quantidade']}")
-                    st.write(f"   **Medicamento:** {med['nome']}")
-                    st.write(f"   **Concentração:** {med['concentracao']}")
-                st.write("**Instruções de Uso:**")
-                st.write(entry['Instruções de Uso'])
-
-        st.markdown("---")
+    st.dataframe(df_historico)
 
 # ----------------------------------------------
 # INTERFACE PRINCIPAL (STREAMLIT)
@@ -832,16 +810,13 @@ def main():
         login = st.text_input("Login:")
         senha = st.text_input("Senha:", type="password")
         if st.button("Entrar"):
-            if login.strip() == "" or senha.strip() == "":
-                st.error("Por favor, preencha ambos os campos de login e senha.")
+            user_info = verificar_login(login, senha)
+            if user_info:
+                st.session_state.autenticado = True
+                st.session_state.usuario_logado = user_info
+                st.success("Login bem-sucedido!")
             else:
-                user_info = verificar_login(login, senha)
-                if user_info:
-                    st.session_state.autenticado = True
-                    st.session_state.usuario_logado = user_info
-                    st.success("Login bem-sucedido!")
-                else:
-                    st.error("Login ou senha incorretos.")
+                st.error("Login ou senha incorretos.")
         return  # Impede o acesso ao restante do aplicativo se não estiver autenticado
 
     # Se chegou aqui, está autenticado
