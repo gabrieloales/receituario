@@ -613,10 +613,15 @@ def tela_receita():
 
     # Medicamentos
     st.write("---")
-    with st.form(key='form_medicamentos', clear_on_submit=True):  # Alterado para clear_on_submit=True
-        qtd_med = st.text_input("Quantidade do Medicamento:")
-        nome_med = st.text_input("Nome do Medicamento:")
-        conc_med = st.text_input("Concentração do Medicamento (ex: 500mg, 200mg/ml):")
+    # Inicializa os campos de medicamento no session_state
+    for campo in ['qtd_med', 'nome_med', 'conc_med']:
+        if campo not in st.session_state:
+            st.session_state[campo] = ""
+
+    with st.form(key='form_medicamentos', clear_on_submit=False):
+        qtd_med = st.text_input("Quantidade do Medicamento:", key='qtd_med')
+        nome_med = st.text_input("Nome do Medicamento:", key='nome_med')
+        conc_med = st.text_input("Concentração do Medicamento (ex: 500mg, 200mg/ml):", key='conc_med')
         submit_med = st.form_submit_button("Adicionar Medicamento")
         if submit_med:
             if qtd_med and nome_med:
@@ -626,8 +631,10 @@ def tela_receita():
                     "concentracao": conc_med
                 })
                 st.success("Medicamento adicionado!")
-                # Limpa os campos manualmente se necessário
-                st.experimental_rerun()  # Reexecuta a app para limpar os campos
+                # Limpa os campos após adicionar o medicamento
+                st.session_state.qtd_med = ""
+                st.session_state.nome_med = ""
+                st.session_state.conc_med = ""
             else:
                 st.warning("Informe quantidade e nome do medicamento.")
 
