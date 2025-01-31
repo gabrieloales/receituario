@@ -16,7 +16,6 @@ import pandas as pd  # Importação adicionada
 USERS_FILE = "users.json"         # Arquivo para armazenar usuários
 USER_FILES_DIR = "user_files"     # Pasta base para armazenar arquivos de cada usuário
 
-# Administrador "principal" hard-coded (opcional).
 ADMIN_LOGIN = "larsen"
 ADMIN_SENHA = "31415962Isa@"
 
@@ -25,7 +24,6 @@ ADMIN_SENHA = "31415962Isa@"
 # ----------------------------------------------
 
 def carregar_usuarios():
-    """Carrega o dicionário de usuários a partir de um arquivo JSON."""
     if not os.path.exists(USERS_FILE):
         return {}
     with open(USERS_FILE, "r", encoding="utf-8") as f:
@@ -35,16 +33,10 @@ def carregar_usuarios():
             return {}
 
 def salvar_usuarios(usuarios):
-    """Salva o dicionário de usuários em um arquivo JSON."""
     with open(USERS_FILE, "w", encoding="utf-8") as f:
         json.dump(usuarios, f, indent=4, ensure_ascii=False)
 
 def verificar_login(login, senha):
-    """
-    Verifica se o login e senha correspondem ao administrador HARDCODED
-    ou se correspondem a algum usuário no arquivo JSON.
-    """
-    # Primeiro, checa se é o admin "hard-coded":
     if login == ADMIN_LOGIN and senha == ADMIN_SENHA:
         return {
             "login": login,
@@ -54,8 +46,6 @@ def verificar_login(login, senha):
             "nome_vet": None,
             "crmv": None
         }
-
-    # Caso contrário, verifica no arquivo de usuários:
     usuarios = carregar_usuarios()
     user_data = usuarios.get(login)
     if user_data and user_data.get("password") == senha:
@@ -64,14 +54,12 @@ def verificar_login(login, senha):
             "is_admin": user_data.get("is_admin", False),
             "fundo": user_data.get("background_image"),
             "assinatura": user_data.get("signature_image"),
-            # Novos campos no perfil
             "nome_vet": user_data.get("nome_vet"),
             "crmv": user_data.get("crmv")
         }
     return None
 
 def cadastrar_usuario(novo_login, nova_senha, nome_vet=None, crmv=None, is_admin=False):
-    """Cadastra um novo usuário (ou atualiza se já existir)."""
     usuarios = carregar_usuarios()
     if novo_login not in usuarios:
         usuarios[novo_login] = {}
@@ -79,40 +67,30 @@ def cadastrar_usuario(novo_login, nova_senha, nome_vet=None, crmv=None, is_admin
     usuarios[novo_login]["is_admin"] = is_admin
     usuarios[novo_login]["nome_vet"] = nome_vet
     usuarios[novo_login]["crmv"] = crmv
-    # Se ainda não existir, define None para imagens
     if "background_image" not in usuarios[novo_login]:
         usuarios[novo_login]["background_image"] = None
     if "signature_image" not in usuarios[novo_login]:
         usuarios[novo_login]["signature_image"] = None
-
     salvar_usuarios(usuarios)
 
 def remover_usuario(login):
-    """Remove um usuário do arquivo JSON."""
     usuarios = carregar_usuarios()
     if login in usuarios:
         del usuarios[login]
         salvar_usuarios(usuarios)
-        # Opcional: remover pasta local de arquivos do usuário
         user_folder = os.path.join(USER_FILES_DIR, login)
         if os.path.exists(user_folder):
             import shutil
             shutil.rmtree(user_folder)
 
 def atualizar_imagem_usuario(login, image_path, tipo="fundo"):
-    """
-    Atualiza o path de imagem de fundo ou assinatura do usuário no JSON.
-    tipo='fundo' ou tipo='assinatura'.
-    """
     usuarios = carregar_usuarios()
     if login not in usuarios:
         return
-
     if tipo == "fundo":
         usuarios[login]["background_image"] = image_path
     else:
         usuarios[login]["signature_image"] = image_path
-
     salvar_usuarios(usuarios)
 
 # ----------------------------------------------
@@ -126,14 +104,12 @@ def formatar_cpf(cpf_str: str) -> str:
     return cpf_str
 
 def formatar_cep(cep_str: str) -> str:
-    """Formata o CEP no padrão 12345-678."""
     digits = re.sub(r'\D', '', cep_str)
     if len(digits) == 8:
         return f"{digits[:5]}-{digits[5:]}"
     return cep_str
 
 def buscar_endereco_via_cep(cep: str) -> dict:
-    """Tenta buscar o endereço via CEP. Se não achar, retorna dicionário vazio."""
     cep_limpo = re.sub(r'\D', '', cep)
     if not cep_limpo:
         return {}
@@ -142,7 +118,6 @@ def buscar_endereco_via_cep(cep: str) -> dict:
         r = requests.get(url, timeout=10)
         r.raise_for_status()
         dados = r.json()
-        # Se "erro" em dados, retorna vazio
         if "erro" in dados:
             return {}
         return {
@@ -155,9 +130,6 @@ def buscar_endereco_via_cep(cep: str) -> dict:
         return {}
 
 def wrap_text(text, font_name, font_size, available_width, c):
-    """
-    Quebra o texto em múltiplas linhas para que não ultrapasse a largura disponível.
-    """
     words = text.split()
     lines = []
     current_line = ""
@@ -179,7 +151,6 @@ def wrap_text(text, font_name, font_size, available_width, c):
 # ----------------------------------------------
 
 def carregar_historico(login):
-    """Carrega o histórico de prescrições do usuário a partir de um arquivo JSON."""
     historico_path = os.path.join(USER_FILES_DIR, login, "historico.json")
     if not os.path.exists(historico_path):
         return []
@@ -190,7 +161,6 @@ def carregar_historico(login):
             return []
 
 def salvar_historico(login, historico):
-    """Salva o histórico de prescrições do usuário em um arquivo JSON."""
     user_folder = os.path.join(USER_FILES_DIR, login)
     if not os.path.exists(user_folder):
         os.makedirs(user_folder)
@@ -219,25 +189,15 @@ def gerar_pdf_receita(
     lista_medicamentos=None,
     instrucoes_uso="",
     data_receita=None,
-    # Imagens de fundo/assinatura
     imagem_fundo=None,
     imagem_assinatura=None,
-    # Nome e CRMV do(a) veterinário(a)
     nome_vet=None,
     crmv=None
 ):
-    """
-    Gera o PDF da receita, incluindo:
-      - Configurações de posição para assinatura e campos.
-      - Quebra de linha para endereço.
-      - Outras formatações necessárias.
-    """
     if lista_medicamentos is None:
         lista_medicamentos = []
     if not data_receita:
         data_receita = datetime.datetime.now().strftime("%d/%m/%Y")
-
-    # Padroniza se faltar algo
     if not nome_vet:
         nome_vet = "NOME NÃO DEFINIDO"
     if not crmv:
@@ -247,7 +207,6 @@ def gerar_pdf_receita(
     largura, altura = A4
     c = canvas.Canvas(nome_pdf, pagesize=A4)
 
-    # ----- Configurações de Fonte -----
     font_label = "Helvetica-Bold"
     font_value = "Helvetica"
     font_label_size = 9
@@ -256,23 +215,20 @@ def gerar_pdf_receita(
     font_med_title = 10
     font_footer = 10
 
-    # ----- Configurações de Margens -----
     margem_esquerda = 2 * cm
     margem_direita = 2 * cm
     largura_util = largura - margem_esquerda - margem_direita
 
-    # ----- Configurações de Posição -----
     config_posicoes = {
-        "assinatura_x": (largura / 2) - 4 * cm,  # 4 cm à esquerda do centro
-        "assinatura_y": 6.3 * cm,                 # 6.3 cm do fundo
+        "assinatura_x": (largura / 2) - 4 * cm,
+        "assinatura_y": 6.3 * cm,
         "assinatura_width": 4 * cm,
         "assinatura_height": 1.5 * cm,
-        "data_y": 5.8 * cm,  # Aproximadamente logo abaixo da assinatura
+        "data_y": 5.8 * cm,
         "mv_y": 5.3 * cm,
         "crmv_y": 4.8 * cm
     }
 
-    # ----- Inserção da Imagem de Fundo -----
     if imagem_fundo and os.path.exists(imagem_fundo):
         try:
             c.drawImage(
@@ -286,11 +242,9 @@ def gerar_pdf_receita(
         except Exception as e:
             st.warning(f"[Aviso] Não foi possível inserir a imagem de fundo: {e}")
 
-    # ----- Título: Tipo de Farmácia -----
     c.setFont(font_label, font_title_size)
     c.drawCentredString(largura / 2, altura - 4 * cm, tipo_farmacia.upper())
 
-    # ----- Dados em Duas Colunas Simétricas -----
     col_width = largura_util / 2
     col_left_x = margem_esquerda
     col_right_x = margem_esquerda + col_width
@@ -298,7 +252,6 @@ def gerar_pdf_receita(
     y_right = altura - 5 * cm
     esp_line = 0.7 * cm
 
-    # Coluna Esquerda: Dados do Animal
     left_fields = [
         ("PACIENTE: ", paciente),
         ("ESPÉCIE - RAÇA: ", especie_raca),
@@ -318,7 +271,6 @@ def gerar_pdf_receita(
         c.setFont(font_label, font_label_size)
         y_left -= esp_line
 
-    # Coluna Direita: Dados do Tutor e Documentos
     right_fields = [
         ("TUTOR(A): ", tutor),
         ("CPF: ", formatar_cpf(cpf))
@@ -356,7 +308,6 @@ def gerar_pdf_receita(
 
     y_campos = min(y_left, y_right) - 0.5 * cm
 
-    # ----- Lista de Medicamentos -----
     y_inicial = y_campos - 1.2 * cm
     c.setFont("Helvetica-Bold", font_med_title)
     esp_med = 1.6 * cm
@@ -381,7 +332,6 @@ def gerar_pdf_receita(
         c.line(margem_esquerda, y_atual + 0.3 * cm, largura - margem_direita, y_atual + 0.3 * cm)
         y_atual -= 0.4 * cm
 
-    # ----- Instruções de Uso -----
     y_inst = y_atual - 1.5 * cm
     c.setFont("Helvetica-Bold", font_med_title)
     c.drawString(margem_esquerda, y_inst, "INSTRUÇÕES DE USO: ")
@@ -393,7 +343,6 @@ def gerar_pdf_receita(
             c.drawString(margem_esquerda, y_texto, l)
             y_texto -= 0.6 * cm
 
-    # ----- Linha Curva -----
     y_curva_inicial = y_texto - 1.5 * cm
     if y_curva_inicial < 0:
         y_curva_inicial = 0
@@ -406,7 +355,6 @@ def gerar_pdf_receita(
              largura - margem_direita, y_curva_final)
     c.setStrokeColor(colors.black)
 
-    # ----- Rodapé: Assinatura, Data, Nome, CRMV -----
     x_assinatura = config_posicoes["assinatura_x"]
     y_assinatura = config_posicoes["assinatura_y"]
     assinatura_width = config_posicoes["assinatura_width"]
@@ -442,7 +390,6 @@ def gerar_pdf_receita(
 
 def tela_admin():
     st.subheader("Administração de Usuários")
-
     st.write("### Usuários Existentes:")
     usuarios = carregar_usuarios()
     if usuarios:
@@ -450,7 +397,6 @@ def tela_admin():
             st.write(f"- **Login**: {u} | Admin: {data.get('is_admin', False)} | Nome Vet: {data.get('nome_vet', 'Não definido')} | CRMV: {data.get('crmv', 'Não definido')}")
     else:
         st.write("Não há usuários cadastrados no arquivo.")
-
     st.write("---")
     st.write("### Cadastrar/Atualizar Usuário")
     novo_login = st.text_input("Login do Usuário", key="novo_login")
@@ -469,7 +415,6 @@ def tela_admin():
             st.session_state.crmv = ""
         else:
             st.warning("É necessário preencher login, senha, nome do(a) veterinário(a) e CRMV.")
-
     st.write("---")
     st.write("### Remover Usuário")
     usuario_remover = st.text_input("Login do usuário para remover:", key="usuario_remover")
@@ -484,11 +429,9 @@ def tela_admin():
 def tela_perfil():
     st.subheader("Meu Perfil")
     st.write("Aqui você pode configurar apenas as imagens de fundo e assinatura.")
-
     user_folder = os.path.join(USER_FILES_DIR, st.session_state.usuario_logado["login"])
     if not os.path.exists(user_folder):
         os.makedirs(user_folder)
-
     fundo_file = st.file_uploader("Upload da Imagem de Fundo (opcional)", type=["png", "jpg", "jpeg"], key="fundo_file")
     if fundo_file is not None:
         fundo_path = os.path.join(user_folder, "fundo_" + fundo_file.name)
@@ -497,7 +440,6 @@ def tela_perfil():
         atualizar_imagem_usuario(st.session_state.usuario_logado["login"], fundo_path, tipo="fundo")
         st.success("Imagem de fundo atualizada com sucesso!")
         st.session_state.usuario_logado["fundo"] = fundo_path
-
     assinatura_file = st.file_uploader("Upload da Assinatura (opcional)", type=["png", "jpg", "jpeg"], key="assinatura_file")
     if assinatura_file is not None:
         assinatura_path = os.path.join(user_folder, "assinatura_" + assinatura_file.name)
@@ -506,7 +448,6 @@ def tela_perfil():
         atualizar_imagem_usuario(st.session_state.usuario_logado["login"], assinatura_path, tipo="assinatura")
         st.success("Assinatura atualizada com sucesso!")
         st.session_state.usuario_logado["assinatura"] = assinatura_path
-
     st.write("---")
     st.write("**Imagem de fundo atual**:", os.path.basename(st.session_state.usuario_logado.get("fundo")) if st.session_state.usuario_logado.get("fundo") else "Nenhuma")
     st.write("**Assinatura atual**:", os.path.basename(st.session_state.usuario_logado.get("assinatura")) if st.session_state.usuario_logado.get("assinatura") else "Nenhuma")
@@ -515,30 +456,8 @@ def tela_perfil():
 
 def tela_receita():
     st.subheader("Criar Receituário")
-
-    # Inicializa os valores do session_state para os campos, se ainda não existirem
     if "lista_medicamentos" not in st.session_state:
         st.session_state.lista_medicamentos = []
-    if "paciente" not in st.session_state:
-        st.session_state.paciente = ""
-    if "especie_raca" not in st.session_state:
-        st.session_state.especie_raca = ""
-    if "pelagem" not in st.session_state:
-        st.session_state.pelagem = ""
-    if "peso" not in st.session_state:
-        st.session_state.peso = ""
-    if "idade" not in st.session_state:
-        st.session_state.idade = ""
-    if "sexo" not in st.session_state:
-        st.session_state.sexo = "Macho"
-    if "chip" not in st.session_state:
-        st.session_state.chip = ""
-    if "tutor" not in st.session_state:
-        st.session_state.tutor = ""
-    if "cpf" not in st.session_state:
-        st.session_state.cpf = ""
-    if "instrucoes_uso" not in st.session_state:
-        st.session_state.instrucoes_uso = ""
     if "cep_tutor" not in st.session_state:
         st.session_state.cep_tutor = ""
     if "end_busca" not in st.session_state:
@@ -551,29 +470,15 @@ def tela_receita():
         "FARMÁCIA DE MANIPULAÇÃO - HUMANO"
     ]
     tipo_farmacia = st.selectbox("Selecione o tipo de Farmácia:", opcoes_farmacia)
-
     eh_controlado = st.radio("Medicamento Controlado?", ("Não", "Sim"))
-
     rg = ""
     endereco_formatado = ""
-
     if eh_controlado == "Sim":
         rg = st.text_input("RG do Tutor(a):", key="rg")
-
         st.write("### Preenchimento do Endereço")
-        modo_endereco = st.radio(
-            "Escolha a forma de preenchimento do endereço:",
-            ("Automático (via CEP)", "Manual")
-        )
-
+        modo_endereco = st.radio("Escolha a forma de preenchimento do endereço:", ("Automático (via CEP)", "Manual"))
         if modo_endereco == "Automático (via CEP)":
-            cep_digitado = st.text_input(
-                "CEP do Tutor(a):",
-                value=st.session_state.cep_tutor,
-                help="Digite o CEP sem hífen, por exemplo: 12345678",
-                key="cep_tutor_input"
-            )
-
+            cep_digitado = st.text_input("CEP do Tutor(a):", value=st.session_state.cep_tutor, help="Digite o CEP sem hífen, por exemplo: 12345678", key="cep_tutor_input")
             if cep_digitado != st.session_state.cep_tutor:
                 st.session_state.cep_tutor = cep_digitado
                 if re.fullmatch(r'\d{8}', cep_digitado):
@@ -585,7 +490,6 @@ def tela_receita():
                         st.warning("CEP não encontrado. Por favor, preencha o endereço manualmente ou verifique o CEP.")
                 elif cep_digitado.strip():
                     st.warning("CEP inválido. Deve conter exatamente 8 dígitos.")
-
             dados_cep = st.session_state.end_busca if st.session_state.end_busca else {}
             if dados_cep:
                 logradouro = dados_cep.get("logradouro", "")
@@ -602,20 +506,14 @@ def tela_receita():
             else:
                 if st.session_state.cep_tutor.strip() and not re.fullmatch(r'\d{8}', st.session_state.cep_tutor):
                     st.warning("Por favor, preencha os campos de endereço manualmente abaixo.")
-
         else:
             rua = st.text_input("Rua:", key="rua_manual")
             numero = st.text_input("Número:", key="numero_manual")
             bairro = st.text_input("Bairro:", key="bairro_manual")
             cidade = st.text_input("Cidade:", key="cidade_manual")
             uf = st.text_input("Estado:", key="uf_manual")
-            cep_manual = st.text_input(
-                "CEP:",
-                help="Digite o CEP no formato 12345-678",
-                key="cep_manual"
-            )
+            cep_manual = st.text_input("CEP:", help="Digite o CEP no formato 12345-678", key="cep_manual")
             complemento = st.text_input("Complemento (opcional):", key="complemento_manual")
-
             if cep_manual:
                 cep_formatado = formatar_cep(cep_manual)
                 if re.fullmatch(r'\d{5}-\d{3}', cep_formatado):
@@ -625,21 +523,18 @@ def tela_receita():
                     endereco_formatado += f" - CEP: {cep_formatado}"
                 else:
                     st.warning("CEP inválido. Deve estar no formato 12345-678.")
+    # Aqui usamos os widgets sem atribuí-los diretamente ao session_state,
+    # pois o próprio Streamlit gerencia o valor via a key.
+    paciente = st.text_input("Nome do Paciente:", key="paciente")
+    especie_raca = st.text_input("Espécie - Raça:", key="especie_raca")
+    pelagem = st.text_input("Pelagem:", key="pelagem")
+    peso = st.text_input("Peso:", key="peso")
+    idade = st.text_input("Idade:", key="idade")
+    sexo = st.radio("Sexo:", ("Macho", "Fêmea"), key="sexo")
+    chip = st.text_input("Número do Chip (se houver):", key="chip")
+    tutor = st.text_input("Nome do Tutor(a):", key="tutor")
+    cpf = st.text_input("CPF do Tutor(a):", key="cpf")
 
-    st.write("---")
-    st.session_state.paciente = st.text_input("Nome do Paciente:", key="paciente")
-    st.session_state.especie_raca = st.text_input("Espécie - Raça:", key="especie_raca")
-    st.session_state.pelagem = st.text_input("Pelagem:", key="pelagem")
-    st.session_state.peso = st.text_input("Peso:", key="peso")
-    st.session_state.idade = st.text_input("Idade:", key="idade")
-    st.session_state.sexo = st.radio("Sexo:", ("Macho", "Fêmea"), key="sexo")
-    st.session_state.chip = st.text_input("Número do Chip (se houver):", key="chip")
-
-    st.write("---")
-    st.session_state.tutor = st.text_input("Nome do Tutor(a):", key="tutor")
-    st.session_state.cpf = st.text_input("CPF do Tutor(a):", key="cpf")
-
-    st.write("---")
     with st.form(key='form_medicamentos', clear_on_submit=False):
         qtd_med = st.text_input("Quantidade do Medicamento:", key="qtd_med")
         nome_med = st.text_input("Nome do Medicamento:", key="nome_med")
@@ -667,16 +562,8 @@ def tela_receita():
     else:
         st.write("Nenhum medicamento adicionado.")
 
-    st.write("---")
-    st.session_state.instrucoes_uso = st.text_area("Digite as instruções de uso:", key="instrucoes_uso")
-
-    st.write("---")
-    data_receita = st.date_input(
-        "Data da Receita:",
-        value=datetime.date.today(),
-        help="Selecione a data da receita. O padrão é a data atual.",
-        key="data_receita"
-    )
+    instrucoes_uso = st.text_area("Digite as instruções de uso:", key="instrucoes_uso")
+    data_receita = st.date_input("Data da Receita:", value=datetime.date.today(), help="Selecione a data da receita. O padrão é a data atual.", key="data_receita")
 
     if st.button("Gerar Receita"):
         if eh_controlado == "Sim":
@@ -686,14 +573,13 @@ def tela_receita():
             if not endereco_formatado:
                 st.error("Endereço do Tutor(a) é obrigatório para medicamentos controlados.")
                 return
-
-        if not st.session_state.paciente:
+        if not paciente:
             st.error("Nome do Paciente é obrigatório.")
             return
-        if not st.session_state.tutor:
+        if not tutor:
             st.error("Nome do Tutor(a) é obrigatório.")
             return
-        if not st.session_state.cpf:
+        if not cpf:
             st.error("CPF do Tutor(a) é obrigatório.")
             return
         if eh_controlado == "Sim":
@@ -707,29 +593,26 @@ def tela_receita():
         imagem_assinatura = st.session_state.usuario_logado.get("assinatura")
         nome_vet = st.session_state.usuario_logado.get("nome_vet") or ""
         crmv = st.session_state.usuario_logado.get("crmv") or ""
-
-        cpf_formatado = formatar_cpf(st.session_state.cpf)
-        paciente_sanitizado = re.sub(r'[^\w\s-]', '', st.session_state.paciente).strip().replace(' ', '_')
+        cpf_formatado = formatar_cpf(cpf)
+        paciente_sanitizado = re.sub(r'[^\w\s-]', '', paciente).strip().replace(' ', '_')
         nome_pdf = f"{paciente_sanitizado} - {cpf_formatado}.pdf"
-
         data_receita_str = data_receita.strftime("%d/%m/%Y")
-
         nome_pdf = gerar_pdf_receita(
             nome_pdf=nome_pdf,
             tipo_farmacia=tipo_farmacia,
-            paciente=st.session_state.paciente,
-            tutor=st.session_state.tutor,
-            cpf=st.session_state.cpf,
+            paciente=paciente,
+            tutor=tutor,
+            cpf=cpf,
             rg=rg,
             endereco_formatado=endereco_formatado,
-            especie_raca=st.session_state.especie_raca,
-            pelagem=st.session_state.pelagem,
-            peso=st.session_state.peso,
-            idade=st.session_state.idade,
-            sexo=st.session_state.sexo,
-            chip=st.session_state.chip,
+            especie_raca=especie_raca,
+            pelagem=pelagem,
+            peso=peso,
+            idade=idade,
+            sexo=sexo,
+            chip=chip,
             lista_medicamentos=st.session_state.lista_medicamentos,
-            instrucoes_uso=st.session_state.instrucoes_uso,
+            instrucoes_uso=instrucoes_uso,
             imagem_fundo=imagem_fundo,
             imagem_assinatura=imagem_assinatura,
             nome_vet=nome_vet,
@@ -737,65 +620,40 @@ def tela_receita():
             data_receita=data_receita_str
         )
         with open(nome_pdf, "rb") as f:
-            st.download_button(
-                label="Baixar Receita",
-                data=f,
-                file_name=nome_pdf,
-                mime="application/pdf"
-            )
-
-        # Salvar no Histórico com os detalhes adicionais
+            st.download_button(label="Baixar Receita", data=f, file_name=nome_pdf, mime="application/pdf")
         historico = carregar_historico(st.session_state.usuario_logado["login"])
         registro = {
-            "Nome do Paciente": st.session_state.paciente,
-            "CPF do Tutor": formatar_cpf(st.session_state.cpf),
-            "Nome do Tutor": st.session_state.tutor,
+            "Nome do Paciente": paciente,
+            "CPF do Tutor": formatar_cpf(cpf),
+            "Nome do Tutor": tutor,
             "Medicamento Controlado": "Sim" if eh_controlado == "Sim" else "Não",
             "Data Emitida": data_receita_str,
             "Medicamentos": st.session_state.lista_medicamentos,
-            "Instruções de Uso": st.session_state.instrucoes_uso,
+            "Instruções de Uso": instrucoes_uso,
             "Tipo de Farmácia": tipo_farmacia,
-            "Espécie - Raça": st.session_state.especie_raca,
-            "Pelagem": st.session_state.pelagem,
-            "Peso": st.session_state.peso,
-            "Sexo": st.session_state.sexo,
-            "Número do Chip": st.session_state.chip
+            "Espécie - Raça": especie_raca,
+            "Pelagem": pelagem,
+            "Peso": peso,
+            "Sexo": sexo,
+            "Número do Chip": chip
         }
         if eh_controlado == "Sim":
             registro["Endereço"] = endereco_formatado
         historico.append(registro)
         salvar_historico(st.session_state.usuario_logado["login"], historico)
         st.success("Prescrição gerada e adicionada ao histórico com sucesso!")
-        
-        # *** RESET DOS CAMPOS ***
+        # Reset dos campos após gerar a receita
         st.session_state.lista_medicamentos = []
-        st.session_state.paciente = ""
-        st.session_state.especie_raca = ""
-        st.session_state.pelagem = ""
-        st.session_state.peso = ""
-        st.session_state.idade = ""
-        st.session_state.sexo = "Macho"
-        st.session_state.chip = ""
-        st.session_state.tutor = ""
-        st.session_state.cpf = ""
-        st.session_state.instrucoes_uso = ""
-        st.session_state.cep_tutor = ""
-        st.session_state.end_busca = {}
-        
-        # Força a atualização da tela
+        # Para os demais campos, como usamos widgets com key, basta definir valores padrão ou deixar o widget gerenciá-los
         st.experimental_rerun()
 
 def tela_historico():
     st.subheader("Histórico de Prescrições")
-
     login = st.session_state.usuario_logado["login"]
     historico = carregar_historico(login)
-
     if not historico:
         st.info("Nenhuma prescrição encontrada no histórico.")
         return
-
-    # Cabeçalho da tabela customizada
     col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 2, 2, 2, 1])
     col1.markdown("**Paciente**")
     col2.markdown("**CPF Tutor**")
@@ -803,8 +661,6 @@ def tela_historico():
     col4.markdown("**Ctrl?**")
     col5.markdown("**Data**")
     col6.markdown("**Detalhes**")
-
-    # Itera sobre os registros e exibe cada linha com botão "Ver"
     for idx, registro in enumerate(historico):
         col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 2, 2, 2, 1])
         col1.write(registro.get("Nome do Paciente", ""))
@@ -834,7 +690,6 @@ def tela_detalhes():
         st.write(f"**Número do Chip:** {registro.get('Número do Chip', '')}")
         if registro.get("Medicamento Controlado", "Não") == "Sim":
             st.write(f"**Endereço:** {registro.get('Endereço', '')}")
-
         st.write("---")
         st.write("### Medicamentos")
         medicamentos = registro.get("Medicamentos", [])
@@ -846,27 +701,22 @@ def tela_detalhes():
                 st.write(f"- **Quantidade:** {qtd} | **Medicamento:** {nome_med} | **Concentração:** {conc}")
         else:
             st.write("Nenhum medicamento informado.")
-
         st.write("---")
         st.write("### Instruções de Uso")
         instrucoes = registro.get("Instruções de Uso", "")
         st.write(instrucoes)
     else:
         st.write("Nenhum detalhe encontrado.")
-
     if st.button("Voltar"):
         st.session_state.current_page = "Histórico"
 
 def main():
     st.set_page_config(layout="wide")
     st.title("VetyRx - Receituário Veterinário")
-
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
-
     if "usuario_logado" not in st.session_state:
         st.session_state.usuario_logado = None
-
     if not st.session_state.autenticado:
         st.subheader("Login")
         login = st.text_input("Login:")
@@ -880,29 +730,14 @@ def main():
             else:
                 st.error("Login ou senha incorretos.")
         return
-
     usuario_atual = st.session_state.usuario_logado
     left_col_width = 2
     content_col_width = 10
     left_col, content_col = st.columns([left_col_width, content_col_width])
-
     with left_col:
         st.markdown("### Menu de Navegação")
         if st.button("Criar Receituário"):
-            # Zera os campos ao acessar a tela de criação de receituário
             st.session_state.lista_medicamentos = []
-            st.session_state.paciente = ""
-            st.session_state.especie_raca = ""
-            st.session_state.pelagem = ""
-            st.session_state.peso = ""
-            st.session_state.idade = ""
-            st.session_state.sexo = "Macho"
-            st.session_state.chip = ""
-            st.session_state.tutor = ""
-            st.session_state.cpf = ""
-            st.session_state.instrucoes_uso = ""
-            st.session_state.cep_tutor = ""
-            st.session_state.end_busca = {}
             st.session_state.current_page = "Criar Receituário"
         if st.button("Histórico"):
             st.session_state.current_page = "Histórico"
@@ -922,10 +757,8 @@ def main():
             if "current_page" in st.session_state:
                 del st.session_state.current_page
             st.success("Logout realizado com sucesso!")
-
     if "current_page" not in st.session_state:
         st.session_state.current_page = "Criar Receituário"
-
     with content_col:
         if st.session_state.current_page == "Criar Receituário":
             tela_receita()
