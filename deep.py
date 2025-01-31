@@ -1,14 +1,6 @@
 import os
 import json
-import datetime
-import re
-import base64
-import requests
 import streamlit as st
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import cm
-from reportlab.lib import colors
 
 # ----------------------------------------------
 # CONSTANTES E CONFIGURAÇÕES
@@ -41,7 +33,7 @@ def salvar_usuarios(usuarios):
 
 def verificar_login(login, senha):
     if login == ADMIN_LOGIN and senha == ADMIN_SENHA:
-        return {"login": login, "is_admin": True, "fundo": None, "assinatura": None, "nome_vet": None, "crmv": None}
+        return {"login": login, "is_admin": True, "nome_vet": None, "crmv": None}
 
     usuarios = carregar_usuarios()
     user_data = usuarios.get(login)
@@ -49,8 +41,6 @@ def verificar_login(login, senha):
         return {
             "login": login,
             "is_admin": user_data.get("is_admin", False),
-            "fundo": user_data.get("background_image"),
-            "assinatura": user_data.get("signature_image"),
             "nome_vet": user_data.get("nome_vet"),
             "crmv": user_data.get("crmv")
         }
@@ -59,19 +49,12 @@ def verificar_login(login, senha):
 
 def cadastrar_usuario(novo_login, nova_senha, nome_vet, crmv, is_admin=False):
     usuarios = carregar_usuarios()
-    if novo_login not in usuarios:
-        usuarios[novo_login] = {}
-    
-    usuarios[novo_login]["password"] = nova_senha
-    usuarios[novo_login]["is_admin"] = is_admin
-    usuarios[novo_login]["nome_vet"] = nome_vet
-    usuarios[novo_login]["crmv"] = crmv
-
-    if "background_image" not in usuarios[novo_login]:
-        usuarios[novo_login]["background_image"] = None
-    if "signature_image" not in usuarios[novo_login]:
-        usuarios[novo_login]["signature_image"] = None
-
+    usuarios[novo_login] = {
+        "password": nova_senha,
+        "is_admin": is_admin,
+        "nome_vet": nome_vet if not is_admin else None,
+        "crmv": crmv if not is_admin else None
+    }
     salvar_usuarios(usuarios)
 
 
@@ -102,7 +85,7 @@ def main():
             if user_info:
                 st.session_state.autenticado = True
                 st.session_state.usuario_logado = user_info
-                st.experimental_rerun()
+                st.experimental_set_query_params(refresh=True)  # Simples workaround para atualização manual
             else:
                 st.error("Login ou senha incorretos.")
         return
@@ -113,7 +96,7 @@ def main():
     if st.button("Sair"):
         st.session_state.autenticado = False
         st.session_state.usuario_logado = None
-        st.experimental_rerun()
+        st.experimental_set_query_params(refresh=True)  # Simples workaround para atualização manual
 
     menu = ["Meu Perfil"]
     if usuario_atual["is_admin"]:
@@ -148,7 +131,6 @@ def main():
             if novo_login and nova_senha:
                 cadastrar_usuario(novo_login, nova_senha, nome_vet_input, crmv_input, admin_flag)
                 st.success(f"Usuário '{novo_login}' cadastrado/atualizado com sucesso!")
-                st.experimental_rerun()
             else:
                 st.warning("É necessário preencher login e senha.")
 
@@ -159,7 +141,6 @@ def main():
             if usuario_remover:
                 remover_usuario(usuario_remover)
                 st.success(f"Usuário '{usuario_remover}' removido com sucesso!")
-                st.experimental_rerun()
             else:
                 st.warning("Informe o login do usuário a ser removido.")
 
@@ -169,25 +150,6 @@ def main():
 
         st.write("**Nome do(a) Veterinário(a):**", usuario_atual.get("nome_vet", "Não Definido"))
         st.write("**CRMV:**", usuario_atual.get("crmv", "Não Definido"))
-
-        st.write("---")
-        fundo_file = st.file_uploader("Upload da Imagem de Fundo (opcional)", type=["png", "jpg", "jpeg"])
-        if fundo_file is not None:
-            fundo_path = os.path.join(USER_FILES_DIR, usuario_atual["login"], "fundo_" + fundo_file.name)
-            with open(fundo_path, "wb") as f:
-                f.write(fundo_file.getvalue())
-            st.success("Imagem de fundo atualizada!")
-
-        assinatura_file = st.file_uploader("Upload da Assinatura (opcional)", type=["png", "jpg", "jpeg"])
-        if assinatura_file is not None:
-            assinatura_path = os.path.join(USER_FILES_DIR, usuario_atual["login"], "assinatura_" + assinatura_file.name)
-            with open(assinatura_path, "wb") as f:
-                f.write(assinatura_file.getvalue())
-            st.success("Assinatura atualizada!")
-
-        st.write("---")
-        st.write("**Imagem de fundo atual**:", usuario_atual.get("fundo"))
-        st.write("**Assinatura atual**:", usuario_atual.get("assinatura"))
 
     if escolha == "Meu Perfil":
         tela_perfil()
