@@ -417,105 +417,6 @@ def gerar_pdf_receita(
     return nome_pdf
 
 # ----------------------------------------------
-# INTERFACE PRINCIPAL (STREAMLIT)
-# ----------------------------------------------
-def main():
-    st.set_page_config(layout="wide")  # Permite uso mais flexível do layout
-    st.title("Gerador de Receituário Veterinário")
-
-    # Verifica se o usuário está autenticado
-    if "autenticado" not in st.session_state:
-        st.session_state.autenticado = False
-
-    if "usuario_logado" not in st.session_state:
-        st.session_state.usuario_logado = None
-
-    # ----------------------------------
-    # TELA DE LOGIN
-    # ----------------------------------
-    if not st.session_state.autenticado:
-        st.subheader("Login")
-        login = st.text_input("Login:")
-        senha = st.text_input("Senha:", type="password")
-        if st.button("Entrar"):
-            user_info = verificar_login(login, senha)
-            if user_info:
-                st.session_state.autenticado = True
-                st.session_state.usuario_logado = user_info
-                st.success("Login bem-sucedido!")
-            else:
-                st.error("Login ou senha incorretos.")
-        return  # Impede o acesso ao restante do aplicativo se não estiver autenticado
-
-    # Se chegou aqui, está autenticado
-    usuario_atual = st.session_state.usuario_logado
-
-    # ----------------------------------
-    # BOTÕES DE NAVEGAÇÃO
-    # ----------------------------------
-    st.sidebar.empty()  # Remove qualquer conteúdo anterior na sidebar
-
-    # Container para os botões de navegação
-    with st.container():
-        st.markdown("### Menu")
-        # Cria uma coluna para cada botão
-        col1, col2, col3 = st.columns([1, 1, 1])
-
-        with col1:
-            if st.button("Criar Receituário"):
-                st.session_state.current_page = "Criar Receituário"
-
-        with col2:
-            if st.button("Meu Perfil"):
-                st.session_state.current_page = "Meu Perfil"
-
-        with col3:
-            if usuario_atual["is_admin"]:
-                if st.button("Administração de Usuários"):
-                    st.session_state.current_page = "Administração de Usuários"
-
-    # Definir página atual se ainda não estiver definida
-    if "current_page" not in st.session_state:
-        st.session_state.current_page = "Criar Receituário"
-
-    # ----------------------------------
-    # EXIBIR A PÁGINA CORRESPONDENTE
-    # ----------------------------------
-    if st.session_state.current_page == "Criar Receituário":
-        tela_receita()
-    elif st.session_state.current_page == "Meu Perfil":
-        tela_perfil()
-    elif st.session_state.current_page == "Administração de Usuários":
-        tela_admin()
-
-    # ----------------------------------
-    # POSICIONAMENTO DE "USUÁRIO LOGADO" E "SAIR"
-    # ----------------------------------
-    # Adiciona espaçamento vertical para empurrar os elementos para baixo
-    st.write("\n" * 10)
-
-    # Cria uma coluna para alinhar "Usuário logado:" e "Sair" à esquerda
-    col1, col2, col3 = st.columns([1, 10, 1])
-    with col1:
-        st.write(f"**Usuário logado:** {usuario_atual['login']}")
-        if st.button("Sair"):
-            # Redefine as variáveis de estado
-            st.session_state.autenticado = False
-            st.session_state.usuario_logado = None
-            # Limpa outras variáveis de sessão se existirem
-            if "lista_medicamentos" in st.session_state:
-                del st.session_state.lista_medicamentos
-            if "current_page" in st.session_state:
-                del st.session_state.current_page
-            st.success("Logout realizado com sucesso!")
-            # O Streamlit automaticamente reexecuta o script após a interação
-
-    # ----------------------------------
-    # REMOVER Duplicação de Navegação
-    # ----------------------------------
-    # Não há necessidade de verificar novamente o 'current_page' aqui
-
-# ----------------------------------------------
 # FUNÇÕES DE TELA
 # ----------------------------------------------
 def tela_admin():
@@ -816,18 +717,98 @@ def tela_receita():
             )
 
 # ----------------------------------------------
-# NAVEGAÇÃO ENTRE AS TELAS
+# INTERFACE PRINCIPAL (STREAMLIT)
 # ----------------------------------------------
-def main_navigation():
+def main():
+    st.set_page_config(layout="wide")  # Permite uso mais flexível do layout
+    st.title("Gerador de Receituário Veterinário")
+
+    # Verifica se o usuário está autenticado
+    if "autenticado" not in st.session_state:
+        st.session_state.autenticado = False
+
+    if "usuario_logado" not in st.session_state:
+        st.session_state.usuario_logado = None
+
+    # ----------------------------------
+    # TELA DE LOGIN
+    # ----------------------------------
+    if not st.session_state.autenticado:
+        st.subheader("Login")
+        login = st.text_input("Login:")
+        senha = st.text_input("Senha:", type="password")
+        if st.button("Entrar"):
+            user_info = verificar_login(login, senha)
+            if user_info:
+                st.session_state.autenticado = True
+                st.session_state.usuario_logado = user_info
+                st.success("Login bem-sucedido!")
+            else:
+                st.error("Login ou senha incorretos.")
+        return  # Impede o acesso ao restante do aplicativo se não estiver autenticado
+
+    # Se chegou aqui, está autenticado
+    usuario_atual = st.session_state.usuario_logado
+
+    # ----------------------------------
+    # BOTÕES DE NAVEGAÇÃO
+    # ----------------------------------
+    st.sidebar.empty()  # Remove qualquer conteúdo anterior na sidebar
+
+    # Container para os botões de navegação
+    with st.container():
+        st.markdown("### Menu")
+        # Cria uma coluna para cada botão
+        col1, col2, col3 = st.columns([1, 1, 1])
+
+        with col1:
+            if st.button("Criar Receituário"):
+                st.session_state.current_page = "Criar Receituário"
+
+        with col2:
+            if st.button("Meu Perfil"):
+                st.session_state.current_page = "Meu Perfil"
+
+        with col3:
+            if usuario_atual["is_admin"]:
+                if st.button("Administração de Usuários"):
+                    st.session_state.current_page = "Administração de Usuários"
+
+    # Definir página atual se ainda não estiver definida
     if "current_page" not in st.session_state:
         st.session_state.current_page = "Criar Receituário"
 
+    # ----------------------------------
+    # EXIBIR A PÁGINA CORRESPONDENTE
+    # ----------------------------------
     if st.session_state.current_page == "Criar Receituário":
         tela_receita()
     elif st.session_state.current_page == "Meu Perfil":
         tela_perfil()
     elif st.session_state.current_page == "Administração de Usuários":
         tela_admin()
+
+    # ----------------------------------
+    # POSICIONAMENTO DE "USUÁRIO LOGADO" E "SAIR"
+    # ----------------------------------
+    # Adiciona espaçamento vertical para empurrar os elementos para baixo
+    st.write("\n" * 10)
+
+    # Cria uma coluna para alinhar "Usuário logado:" e "Sair" à esquerda
+    col1, col2, col3 = st.columns([1, 10, 1])
+    with col1:
+        st.write(f"**Usuário logado:** {usuario_atual['login']}")
+        if st.button("Sair"):
+            # Redefine as variáveis de estado
+            st.session_state.autenticado = False
+            st.session_state.usuario_logado = None
+            # Limpa outras variáveis de sessão se existirem
+            if "lista_medicamentos" in st.session_state:
+                del st.session_state.lista_medicamentos
+            if "current_page" in st.session_state:
+                del st.session_state.current_page
+            st.success("Logout realizado com sucesso!")
+            # O Streamlit automaticamente reexecuta o script após a interação
 
 # ----------------------------------------------
 # INICIALIZAÇÃO
