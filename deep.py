@@ -227,10 +227,8 @@ def gerar_pdf_receita(
     crmv=None
 ):
     """
-    Gera o PDF da receita, incluindo:
-      - Artefato Blezie (curva)
-      - Assinatura deslocada 1cm adicional para esquerda e 2cm a mais para cima
-      - M. V. e CRMV aproximados (0.3cm de espaçamento)
+    Gera o PDF da receita, incluindo informações do veterinário(a),
+    assinatura, fundo, etc.
     """
     if lista_medicamentos is None:
         lista_medicamentos = []
@@ -337,7 +335,7 @@ def gerar_pdf_receita(
         c.drawString(margem_esquerda, y_inst, linha.upper())
         y_inst -= 0.6 * cm
 
-    # "Artefato Blezie": Desenha uma curva para impedir escrita abaixo
+    # Artefato (curva) para impedir escrita adicional
     y_curva_inicial = y_inst - 1.5 * cm
     if y_curva_inicial < 0:
         y_curva_inicial = 0
@@ -351,7 +349,6 @@ def gerar_pdf_receita(
     c.setStrokeColor(colors.black)
 
     # Rodapé: Assinatura, Data, Nome, CRMV
-    # Sobe 2cm (de 6 -> 8) e 1cm adicional à esquerda (de -2 -> -3)
     x_centro_rodape = (largura / 2) - 3 * cm
     y_rodape = 8 * cm
 
@@ -373,16 +370,16 @@ def gerar_pdf_receita(
             st.warning(f"[Aviso] Não foi possível inserir a assinatura: {e}")
 
     # Ajusta y após colocar a imagem
-    y_rodape -= (assinatura_height + 0.3 * cm)  # reduz de 0.5 para 0.3 cm
+    y_rodape -= (assinatura_height + 0.3 * cm)
 
     c.setFont(font_value, font_footer)
     # Data
     c.drawCentredString(x_centro_rodape, y_rodape, f"CURITIBA, PR, {data_receita}")
-    y_rodape -= 0.3 * cm  # 0.3 cm entre data e M.V.
+    y_rodape -= 0.3 * cm
 
     # Nome veterinário
     c.drawCentredString(x_centro_rodape, y_rodape, f"M. V. {nome_vet_up}")
-    y_rodape -= 0.3 * cm  # 0.3 cm entre M.V. e CRMV
+    y_rodape -= 0.3 * cm
 
     # CRMV
     c.drawCentredString(x_centro_rodape, y_rodape, f"CRMV-PR: {crmv}")
@@ -484,16 +481,18 @@ def main():
         if not os.path.exists(user_folder):
             os.makedirs(user_folder)
 
-        # Nome Veterinário(a) e CRMV
+        # Nome Veterinário(a) e CRMV - carrega o que estiver salvo no JSON
         nome_vet_atual = usuario_atual.get("nome_vet") or ""
         crmv_atual = usuario_atual.get("crmv") or ""
 
+        # Mostra campos com valores já salvos (ou vazio, se for primeira vez)
         nome_vet_input = st.text_input("Nome do(a) Veterinário(a):", value=nome_vet_atual)
         crmv_input = st.text_input("CRMV (somente números ou ex: 12345):", value=crmv_atual)
+
         if st.button("Salvar Dados Veterinário"):
             atualizar_dados_veterinario(usuario_atual["login"], nome_vet_input, crmv_input)
             st.success("Dados de Veterinário(a) atualizados!")
-            # Atualiza session_state
+            # Atualiza session_state local para refletir no front-end
             usuario_atual["nome_vet"] = nome_vet_input
             usuario_atual["crmv"] = crmv_input
             st.experimental_rerun()
@@ -643,7 +642,7 @@ def main():
 
         # Botão Gerar Receita
         if st.button("Gerar Receita"):
-            # Carrega dados do perfil
+            # Carrega dados do perfil do(a) veterinário(a) do usuário logado
             imagem_fundo = usuario_atual.get("fundo")
             imagem_assinatura = usuario_atual.get("assinatura")
             nome_vet = usuario_atual.get("nome_vet") or ""
@@ -669,8 +668,8 @@ def main():
                 chip=chip,
                 lista_medicamentos=st.session_state.lista_medicamentos,
                 instrucoes_uso=instrucoes_uso,
-                nome_vet=nome_vet,
-                crmv=crmv,
+                nome_vet=nome_vet,                # Puxa do perfil
+                crmv=crmv,                        # Puxa do perfil
                 imagem_fundo=imagem_fundo,
                 imagem_assinatura=imagem_assinatura
             )
@@ -679,7 +678,7 @@ def main():
             html_download = gerar_download_automatico(pdf_path)
             st.markdown(html_download, unsafe_allow_html=True)
 
-            # Opcional: limpar a lista de medicamentos
+            # Se desejar, pode limpar a lista de medicamentos aqui:
             # st.session_state.lista_medicamentos = []
 
     # ----------------------------------
