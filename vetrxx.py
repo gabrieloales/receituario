@@ -239,7 +239,7 @@ def gerar_pdf_receita(
     # ----- Configurações de Posição -----
     config_posicoes = {
         "assinatura_x": (largura / 2) - 4 * cm,  # 4 cm à esquerda do centro
-        "assinatura_y": 6.3 * cm,                 # 8 cm do fundo
+        "assinatura_y": 6.3 * cm,                 # 6.3 cm do fundo
         "assinatura_width": 4 * cm,
         "assinatura_height": 1.5 * cm,
         "data_y": 5.8 * cm,  # Aproximadamente logo abaixo da assinatura
@@ -405,6 +405,10 @@ def gerar_pdf_receita(
             y_assinatura -= assinatura_height + 0.2 * cm  # Espaçamento reduzido para aproximar dos campos
         except Exception as e:
             st.warning(f"[Aviso] Não foi possível inserir a assinatura: {e}")
+
+    # ----- Campo de Seleção de Data -----
+    # Este campo será preenchido no Streamlit e passado para gerar_pdf_receita
+    # Portanto, já está sendo tratado na função tela_receita()
 
     # ----- Campos "Data", "M. V." e "CRMV" -----
     c.setFont("Helvetica", font_footer)
@@ -644,6 +648,14 @@ def tela_receita():
     st.write("---")
     instrucoes_uso = st.text_area("Digite as instruções de uso:")
 
+    # ----- Adição da Opção de Escolher a Data da Receita -----
+    st.write("---")
+    data_receita = st.date_input(
+        "Data da Receita:",
+        value=datetime.date.today(),
+        help="Selecione a data da receita. O padrão é a data atual."
+    )
+
     # Gerar Receita
     if st.button("Gerar Receita"):
         # Validações necessárias
@@ -685,6 +697,9 @@ def tela_receita():
         paciente_sanitizado = re.sub(r'[^\w\s-]', '', paciente).strip().replace(' ', '_')
         nome_pdf = f"{paciente_sanitizado} - {cpf_formatado}.pdf"
 
+        # Formatar a data_receita selecionada
+        data_receita_str = data_receita.strftime("%d/%m/%Y")
+
         # Gera PDF
         nome_pdf = gerar_pdf_receita(
             nome_pdf=nome_pdf,
@@ -706,7 +721,7 @@ def tela_receita():
             imagem_assinatura=imagem_assinatura,
             nome_vet=nome_vet,
             crmv=crmv,
-            data_receita=datetime.datetime.now().strftime("%d/%m/%Y")
+            data_receita=data_receita_str  # Passa a data selecionada
         )
         with open(nome_pdf, "rb") as f:
             st.download_button(
