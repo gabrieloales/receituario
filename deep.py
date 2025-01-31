@@ -98,7 +98,7 @@ def main():
         st.session_state.usuario_logado = None
         st.experimental_set_query_params(refresh=True)  # Simples workaround para atualização manual
 
-    menu = ["Meu Perfil"]
+    menu = ["Gerar Receita", "Meu Perfil"]
     if usuario_atual["is_admin"]:
         menu.append("Administração de Usuários")
     escolha = st.sidebar.selectbox("Menu", menu)
@@ -151,7 +151,27 @@ def main():
         st.write("**Nome do(a) Veterinário(a):**", usuario_atual.get("nome_vet", "Não Definido"))
         st.write("**CRMV:**", usuario_atual.get("crmv", "Não Definido"))
 
-    if escolha == "Meu Perfil":
+    def tela_receita():
+        st.subheader("Gerar Receituário")
+
+        # Exibir dados do veterinário (bloqueados para edição)
+        st.write("**Veterinário(a):**", usuario_atual.get("nome_vet", "Não Definido"))
+        st.write("**CRMV:**", usuario_atual.get("crmv", "Não Definido"))
+
+        paciente = st.text_input("Nome do Paciente:")
+        tutor = st.text_input("Nome do Tutor:")
+        medicamento = st.text_input("Nome do Medicamento:")
+        quantidade = st.text_input("Quantidade:")
+
+        if st.button("Gerar Receita"):
+            if paciente and tutor and medicamento and quantidade:
+                st.success(f"Receita gerada para {paciente}!")
+            else:
+                st.warning("Todos os campos devem ser preenchidos.")
+
+    if escolha == "Gerar Receita":
+        tela_receita()
+    elif escolha == "Meu Perfil":
         tela_perfil()
     elif escolha == "Administração de Usuários":
         if usuario_atual["is_admin"]:
