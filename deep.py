@@ -144,11 +144,15 @@ def gerar_pdf_receita(
     c.drawString(margem_esquerda, y_rodape - 0.7 * cm, "Assinatura: ___________________________")
 
     c.save()
-    st.success(f"PDF gerado com sucesso: {nome_pdf}")
+    return nome_pdf
 
 # Interface do Streamlit
 def main():
     st.title("Gerador de Receituário Veterinário")
+
+    # Inicializa a lista de medicamentos no session_state
+    if "lista_medicamentos" not in st.session_state:
+        st.session_state.lista_medicamentos = []
 
     st.subheader("Dados do Paciente")
     paciente = st.text_input("Nome do Paciente:")
@@ -168,18 +172,21 @@ def main():
     endereco_formatado = f"{endereco.get('logradouro', '')}, {endereco.get('bairro', '')}, {endereco.get('localidade', '')}, {endereco.get('uf', '')}"
 
     st.subheader("Medicamentos")
-    lista_medicamentos = []
     qtd_med = st.text_input("Quantidade do Medicamento:")
     nome_med = st.text_input("Nome do Medicamento:")
     if st.button("Adicionar Medicamento"):
-        lista_medicamentos.append({"quantidade": qtd_med, "nome": nome_med})
-        st.write("Medicamentos Adicionados:", lista_medicamentos)
+        st.session_state.lista_medicamentos.append({"quantidade": qtd_med, "nome": nome_med})
+        st.success("Medicamento adicionado!")
+
+    st.write("Medicamentos Adicionados:")
+    for i, med in enumerate(st.session_state.lista_medicamentos, start=1):
+        st.write(f"{i}) QTD: {med['quantidade']} - MEDICAMENTO: {med['nome']}")
 
     st.subheader("Instruções de Uso")
     instrucoes_uso = st.text_area("Digite as instruções de uso:")
 
     if st.button("Gerar Receita"):
-        gerar_pdf_receita(
+        nome_pdf = gerar_pdf_receita(
             paciente=paciente,
             tutor=tutor,
             cpf=cpf,
@@ -191,9 +198,16 @@ def main():
             idade=idade,
             sexo=sexo,
             chip=chip,
-            lista_medicamentos=lista_medicamentos,
+            lista_medicamentos=st.session_state.lista_medicamentos,
             instrucoes_uso=instrucoes_uso
         )
+        with open(nome_pdf, "rb") as f:
+            st.download_button(
+                label="Baixar Receita",
+                data=f,
+                file_name=nome_pdf,
+                mime="application/pdf"
+            )
 
 if __name__ == "__main__":
     main()
