@@ -406,6 +406,10 @@ def gerar_pdf_receita(
         except Exception as e:
             st.warning(f"[Aviso] Não foi possível inserir a assinatura: {e}")
 
+    # ----- Campo de Seleção de Data -----
+    # Este campo será preenchido no Streamlit e passado para gerar_pdf_receita
+    # Portanto, já está sendo tratado na função tela_receita()
+
     # ----- Campos "Data", "M. V." e "CRMV" -----
     c.setFont("Helvetica", font_footer)
     c.drawCentredString(x_assinatura, config_posicoes["data_y"], f"CURITIBA, PR, {data_receita}")
@@ -613,15 +617,10 @@ def tela_receita():
 
     # Medicamentos
     st.write("---")
-    # Inicializa os campos de medicamento no session_state
-    for campo in ['qtd_med', 'nome_med', 'conc_med']:
-        if campo not in st.session_state:
-            st.session_state[campo] = ""
-
     with st.form(key='form_medicamentos', clear_on_submit=False):
-        qtd_med = st.text_input("Quantidade do Medicamento:", key='qtd_med')
-        nome_med = st.text_input("Nome do Medicamento:", key='nome_med')
-        conc_med = st.text_input("Concentração do Medicamento (ex: 500mg, 200mg/ml):", key='conc_med')
+        qtd_med = st.text_input("Quantidade do Medicamento:")
+        nome_med = st.text_input("Nome do Medicamento:")
+        conc_med = st.text_input("Concentração do Medicamento (ex: 500mg, 200mg/ml):")
         submit_med = st.form_submit_button("Adicionar Medicamento")
         if submit_med:
             if qtd_med and nome_med:
@@ -631,11 +630,6 @@ def tela_receita():
                     "concentracao": conc_med
                 })
                 st.success("Medicamento adicionado!")
-                # Limpa os campos após adicionar o medicamento
-                st.session_state.qtd_med = ""
-                st.session_state.nome_med = ""
-                st.session_state.conc_med = ""
-                st.experimental_rerun()  # Reexecuta a app para atualizar os campos
             else:
                 st.warning("Informe quantidade e nome do medicamento.")
 
@@ -703,7 +697,7 @@ def tela_receita():
         paciente_sanitizado = re.sub(r'[^\w\s-]', '', paciente).strip().replace(' ', '_')
         nome_pdf = f"{paciente_sanitizado} - {cpf_formatado}.pdf"
 
-        # Formatar a data_receita selecionada no formato brasileiro DIA/MÊS/ANO
+        # Formatar a data_receita selecionada
         data_receita_str = data_receita.strftime("%d/%m/%Y")
 
         # Gera PDF
@@ -727,7 +721,7 @@ def tela_receita():
             imagem_assinatura=imagem_assinatura,
             nome_vet=nome_vet,
             crmv=crmv,
-            data_receita=data_receita_str  # Passa a data selecionada formatada
+            data_receita=data_receita_str  # Passa a data selecionada
         )
         with open(nome_pdf, "rb") as f:
             st.download_button(
