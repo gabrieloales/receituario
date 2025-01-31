@@ -299,11 +299,26 @@ def gerar_pdf_receita(
 
     # Lista de Medicamentos
     y_med = min(y_left, y_right) - 1.2 * cm
-    c.setFont(font_label, font_med_title)
     for i, med in enumerate(lista_medicamentos, start=1):
-        texto_med = f"{i}) QTD: {med.get('quantidade', '').upper()} - MEDICAMENTO: {med.get('nome', '').upper()}"
+        qtd = med.get("quantidade", "").upper()
+        nome_med = med.get("nome", "").upper()
+        conc = med.get("concentracao", "")
+        texto_med = f"{i}) QTD: {qtd} - MEDICAMENTO: {nome_med}"
+        c.setFont(font_label, font_med_title)
         c.drawString(margem_esquerda, y_med, texto_med)
-        y_med -= 0.8 * cm
+        y_med -= 0.6 * cm
+
+        if conc:
+            texto_conc = f"   CONCENTRAÇÃO: {conc}"
+            c.setFont(font_value, font_value_size)
+            c.drawString(margem_esquerda, y_med, texto_conc)
+            y_med -= 0.6 * cm
+
+        # Desenha a linha contínua separadora
+        c.setLineWidth(0.5)
+        c.setStrokeColor(colors.black)
+        c.line(margem_esquerda, y_med + 0.3 * cm, largura - margem_direita, y_med + 0.3 * cm)
+        y_med -= 0.4 * cm  # Espaço após a linha
 
     # Instruções de Uso
     y_inst = y_med - 1.5 * cm
@@ -566,7 +581,7 @@ def main():
                             st.warning("CEP não encontrado. Por favor, preencha o endereço manualmente ou verifique o CEP.")
                     elif cep_digitado.strip():
                         st.warning("CEP inválido. Deve conter exatamente 8 dígitos.")
-                
+
                 dados_cep = st.session_state.end_busca if st.session_state.end_busca else {}
                 if dados_cep:
                     logradouro = dados_cep.get("logradouro", "")
@@ -675,9 +690,13 @@ def main():
             if not cpf:
                 st.error("CPF do Tutor(a) é obrigatório.")
                 return
-            if eh_controlado == "Sim" and not re.fullmatch(r'\d{5}-\d{3}', formatar_cep(cep_manual if 'cep_manual' in locals() else st.session_state.get('cep_tutor', ''))):
-                st.error("CEP inválido. Deve estar no formato 12345-678.")
-                return
+            if eh_controlado == "Sim":
+                # Determinar qual CEP foi utilizado
+                cep_utilizado = cep_manual if 'cep_manual' in locals() and cep_manual else st.session_state.get('cep_tutor', '')
+                cep_formatado = formatar_cep(cep_utilizado)
+                if not re.fullmatch(r'\d{5}-\d{3}', cep_formatado):
+                    st.error("CEP inválido. Deve estar no formato 12345-678.")
+                    return
 
             # Preparar dados para o PDF
             imagem_fundo = usuario_atual.get("fundo")
