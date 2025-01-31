@@ -282,11 +282,11 @@ def gerar_pdf_receita(
     if endereco_formatado:
         # Formatar o CEP dentro do endereço
         # Extrair o CEP do endereco_formatado para formatá-lo
-        cep_match = re.search(r'CEP:\s*(\d{5}-?\d{3})', endereco_formatado)
+        cep_match = re.search(r'CEP:\s*(\d{5}-\d{3})', endereco_formatado)
         if cep_match:
             cep_raw = cep_match.group(1)
             cep_formatado = formatar_cep(cep_raw)
-            endereco_formatado = re.sub(r'CEP:\s*\d{5}-?\d{3}', f'CEP: {cep_formatado}', endereco_formatado)
+            endereco_formatado = re.sub(r'CEP:\s*\d{5}-\d{3}', f'CEP: {cep_formatado}', endereco_formatado)
         right_fields.append(("ENDEREÇO: ", endereco_formatado))
 
     for label, valor in right_fields:
@@ -534,52 +534,78 @@ def main():
         if eh_controlado == "Sim":
             rg = st.text_input("RG do Tutor(a):")
 
-            # CEP - busca automática
-            # Guardamos valores intermediários no session_state para "auto-fill"
-            if "cep_tutor" not in st.session_state:
-                st.session_state.cep_tutor = ""
-            if "end_busca" not in st.session_state:
-                st.session_state.end_busca = {}  # dicionário com logradouro, bairro, etc.
+            st.write("### Preenchimento do Endereço")
+            # Escolha entre Automático ou Manual
+            modo_endereco = st.radio(
+                "Escolha a forma de preenchimento do endereço:",
+                ("Automático (via CEP)", "Manual")
+            )
 
-            cep_digitado = st.text_input("CEP do Tutor(a):", value=st.session_state.cep_tutor, help="Digite o CEP sem hífen, por exemplo: 12345678")
+            if modo_endereco == "Automático (via CEP)":
+                # CEP - busca automática
+                if "cep_tutor" not in st.session_state:
+                    st.session_state.cep_tutor = ""
+                if "end_busca" not in st.session_state:
+                    st.session_state.end_busca = {}  # dicionário com logradouro, bairro, etc.
 
-            # Se o CEP mudou, tentamos buscar novamente
-            if cep_digitado != st.session_state.cep_tutor:
-                st.session_state.cep_tutor = cep_digitado
-                if cep_digitado.strip():
-                    dados_end = buscar_endereco_via_cep(cep_digitado)
-                    st.session_state.end_busca = dados_end
-                    st.experimental_rerun()  # força recarregar
+                cep_digitado = st.text_input(
+                    "CEP do Tutor(a):",
+                    value=st.session_state.cep_tutor,
+                    help="Digite o CEP sem hífen, por exemplo: 12345678"
+                )
 
-            dados_cep = st.session_state.end_busca if st.session_state.end_busca else {}
-            if dados_cep:
-                # Exibe o que encontrou
-                logradouro = dados_cep.get("logradouro", "")
-                bairro = dados_cep.get("bairro", "")
-                cidade = dados_cep.get("localidade", "")
-                uf = dados_cep.get("uf", "")
-                st.success(f"Endereço encontrado: {logradouro}, {bairro}, {cidade}-{uf}")
+                # Se o CEP mudou, tentamos buscar novamente
+                if cep_digitado != st.session_state.cep_tutor:
+                    st.session_state.cep_tutor = cep_digitado
+                    if re.fullmatch(r'\d{8}', cep_digitado):
+                        dados_end = buscar_endereco_via_cep(cep_digitado)
+                        st.session_state.end_busca = dados_end
+                        if dados_end:
+                            st.success(f"Endereço encontrado: {dados_end.get('logradouro')}, {dados_end.get('bairro')}, {dados_end.get('localidade')}-{dados_end.get('uf')}")
+                        else:
+                            st.warning("CEP não encontrado. Por favor, preencha o endereço manualmente ou verifique o CEP.")
+                    elif cep_digitado.strip():
+                        st.warning("CEP inválido. Deve conter exatamente 8 dígitos.")
+                
+                dados_cep = st.session_state.end_busca if st.session_state.end_busca else {}
+                if dados_cep:
+                    logradouro = dados_cep.get("logradouro", "")
+                    bairro = dados_cep.get("bairro", "")
+                    cidade = dados_cep.get("localidade", "")
+                    uf = dados_cep.get("uf", "")
+                    numero = st.text_input("Número:")
+                    complemento = st.text_input("Complemento (opcional):")
+                    endereco_formatado = f"{logradouro}, {numero}, {bairro}, {cidade}-{uf}"
+                    if complemento:
+                        endereco_formatado += f" (Compl.: {complemento})"
+                    if re.fullmatch(r'\d{5}-\d{3}', formatar_cep(cep_digitado)):
+                        endereco_formatado += f" - CEP: {formatar_cep(cep_digitado)}"
+                else:
+                    if st.session_state.cep_tutor.strip() and not re.fullmatch(r'\d{8}', st.session_state.cep_tutor):
+                        st.warning("Por favor, preencha os campos de endereço manualmente abaixo.")
+
             else:
-                # Se não encontrou nada e o usuário digitou um CEP
-                if st.session_state.cep_tutor.strip():
-                    st.warning("CEP não encontrado. Preencha manualmente.")
-                logradouro = st.text_input("Logradouro (Rua):", value="")
-                bairro = st.text_input("Bairro:", value="")
-                cidade = st.text_input("Cidade:", value="")
-                uf = st.text_input("UF:", value="")
+                # Preenchimento Manual
+                rua = st.text_input("Rua:")
+                numero = st.text_input("Número:")
+                bairro = st.text_input("Bairro:")
+                cidade = st.text_input("Cidade:")
+                uf = st.text_input("Estado:")
+                cep_manual = st.text_input(
+                    "CEP:",
+                    help="Digite o CEP no formato 12345-678"
+                )
+                complemento = st.text_input("Complemento (opcional):")
 
-            numero = st.text_input("Número:")
-            complemento = st.text_input("Complemento (opcional):")
-
-            # Montamos o endereço
-            if logradouro or bairro or cidade or uf:
-                endereco_formatado = f"{logradouro}, {numero}, {bairro}, {cidade}-{uf}"
-                if complemento:
-                    endereco_formatado += f" (Compl.: {complemento})"
-                if st.session_state.cep_tutor:
-                    # Formatar o CEP antes de adicionar
-                    cep_formatado = formatar_cep(st.session_state.cep_tutor)
-                    endereco_formatado += f" - CEP: {cep_formatado}"
+                if cep_manual:
+                    cep_formatado = formatar_cep(cep_manual)
+                    if re.fullmatch(r'\d{5}-\d{3}', cep_formatado):
+                        endereco_formatado = f"{rua}, {numero}, {bairro}, {cidade}-{uf}"
+                        if complemento:
+                            endereco_formatado += f" (Compl.: {complemento})"
+                        endereco_formatado += f" - CEP: {cep_formatado}"
+                    else:
+                        st.warning("CEP inválido. Deve estar no formato 12345-678.")
 
         # Dados do Paciente
         st.write("---")
@@ -598,21 +624,32 @@ def main():
 
         # Medicamentos
         st.write("---")
-        qtd_med = st.text_input("Quantidade do Medicamento:")
-        nome_med = st.text_input("Nome do Medicamento:")
-        if st.button("Adicionar Medicamento"):
-            if qtd_med and nome_med:
-                st.session_state.lista_medicamentos.append({
-                    "quantidade": qtd_med,
-                    "nome": nome_med
-                })
-                st.success("Medicamento adicionado!")
-            else:
-                st.warning("Informe quantidade e nome do medicamento.")
+        with st.form(key='form_medicamentos', clear_on_submit=False):
+            qtd_med = st.text_input("Quantidade do Medicamento:")
+            nome_med = st.text_input("Nome do Medicamento:")
+            conc_med = st.text_input("Concentração do Medicamento (ex: 500mg, 200mg/ml):")
+            submit_med = st.form_submit_button("Adicionar Medicamento")
+            if submit_med:
+                if qtd_med and nome_med:
+                    st.session_state.lista_medicamentos.append({
+                        "quantidade": qtd_med,
+                        "nome": nome_med,
+                        "concentracao": conc_med
+                    })
+                    st.success("Medicamento adicionado!")
+                else:
+                    st.warning("Informe quantidade e nome do medicamento.")
 
-        st.write("Medicamentos Adicionados:")
-        for i, med in enumerate(st.session_state.lista_medicamentos, start=1):
-            st.write(f"{i}) QTD: {med['quantidade']} - MEDICAMENTO: {med['nome']}")
+        st.write("### Medicamentos Adicionados:")
+        if st.session_state.lista_medicamentos:
+            for i, med in enumerate(st.session_state.lista_medicamentos, start=1):
+                conc = med.get('concentracao', '')
+                texto_med = f"{i}) QTD: {med['quantidade']} - MEDICAMENTO: {med['nome']}"
+                if conc:
+                    texto_med += f" - CONCENTRAÇÃO: {conc}"
+                st.write(texto_med)
+        else:
+            st.write("Nenhum medicamento adicionado.")
 
         # Instruções de Uso
         st.write("---")
@@ -620,6 +657,28 @@ def main():
 
         # Gerar Receita
         if st.button("Gerar Receita"):
+            # Validações necessárias
+            if eh_controlado == "Sim":
+                if not rg:
+                    st.error("RG do Tutor(a) é obrigatório para medicamentos controlados.")
+                    return
+                if not endereco_formatado:
+                    st.error("Endereço do Tutor(a) é obrigatório para medicamentos controlados.")
+                    return
+
+            if not paciente:
+                st.error("Nome do Paciente é obrigatório.")
+                return
+            if not tutor:
+                st.error("Nome do Tutor(a) é obrigatório.")
+                return
+            if not cpf:
+                st.error("CPF do Tutor(a) é obrigatório.")
+                return
+            if eh_controlado == "Sim" and not re.fullmatch(r'\d{5}-\d{3}', formatar_cep(cep_manual if 'cep_manual' in locals() else st.session_state.get('cep_tutor', ''))):
+                st.error("CEP inválido. Deve estar no formato 12345-678.")
+                return
+
             # Preparar dados para o PDF
             imagem_fundo = usuario_atual.get("fundo")
             imagem_assinatura = usuario_atual.get("assinatura")
@@ -649,7 +708,8 @@ def main():
                 imagem_fundo=imagem_fundo,
                 imagem_assinatura=imagem_assinatura,
                 nome_vet=nome_vet,
-                crmv=crmv
+                crmv=crmv,
+                data_receita=datetime.datetime.now().strftime("%d/%m/%Y")
             )
             with open(nome_pdf, "rb") as f:
                 st.download_button(
