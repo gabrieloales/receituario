@@ -326,7 +326,6 @@ def gerar_pdf_receita(
     if rg:
         right_fields.append(("RG: ", rg))
     if endereco_formatado:
-        # Formatar o CEP dentro do endereço
         cep_match = re.search(r'CEP:\s*(\d{5}-\d{3})', endereco_formatado)
         if cep_match:
             cep_raw = cep_match.group(1)
@@ -377,11 +376,10 @@ def gerar_pdf_receita(
             c.setFont("Helvetica-Bold", font_med_title)
             y_atual -= 0.6 * cm
 
-        # Desenha a linha contínua separadora
         c.setLineWidth(0.5)
         c.setStrokeColor(colors.black)
         c.line(margem_esquerda, y_atual + 0.3 * cm, largura - margem_direita, y_atual + 0.3 * cm)
-        y_atual -= 0.4 * cm  # Espaço após a linha
+        y_atual -= 0.4 * cm
 
     # ----- Instruções de Uso -----
     y_inst = y_atual - 1.5 * cm
@@ -723,17 +721,27 @@ def tela_receita():
                 mime="application/pdf"
             )
 
-        # Salvar no Histórico, incluindo os detalhes dos medicamentos e instruções de uso
+        # Salvar no Histórico com os detalhes adicionais
         historico = carregar_historico(st.session_state.usuario_logado["login"])
-        historico.append({
+        registro = {
             "Nome do Paciente": paciente,
             "CPF do Tutor": formatar_cpf(cpf),
             "Nome do Tutor": tutor,
             "Medicamento Controlado": "Sim" if eh_controlado == "Sim" else "Não",
             "Data Emitida": data_receita_str,
             "Medicamentos": st.session_state.lista_medicamentos,
-            "Instruções de Uso": instrucoes_uso
-        })
+            "Instruções de Uso": instrucoes_uso,
+            "Tipo de Farmácia": tipo_farmacia,
+            "Espécie - Raça": especie_raca,
+            "Pelagem": pelagem,
+            "Peso": peso,
+            "Sexo": sexo,
+            "Número do Chip": chip
+        }
+        # Se for medicamento controlado, adiciona o Endereço
+        if eh_controlado == "Sim":
+            registro["Endereço"] = endereco_formatado
+        historico.append(registro)
         salvar_historico(st.session_state.usuario_logado["login"], historico)
         st.success("Prescrição gerada e adicionada ao histórico com sucesso!")
 
@@ -778,6 +786,14 @@ def tela_detalhes():
         st.write(f"**Nome do Tutor:** {registro.get('Nome do Tutor', '')}")
         st.write(f"**Medicamento Controlado:** {registro.get('Medicamento Controlado', '')}")
         st.write(f"**Data Emitida:** {registro.get('Data Emitida', '')}")
+        st.write(f"**Tipo de Farmácia:** {registro.get('Tipo de Farmácia', '')}")
+        st.write(f"**Espécie - Raça:** {registro.get('Espécie - Raça', '')}")
+        st.write(f"**Pelagem:** {registro.get('Pelagem', '')}")
+        st.write(f"**Peso:** {registro.get('Peso', '')}")
+        st.write(f"**Sexo:** {registro.get('Sexo', '')}")
+        st.write(f"**Número do Chip:** {registro.get('Número do Chip', '')}")
+        if registro.get("Medicamento Controlado", "Não") == "Sim":
+            st.write(f"**Endereço:** {registro.get('Endereço', '')}")
 
         st.write("---")
         st.write("### Medicamentos")
