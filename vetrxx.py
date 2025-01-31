@@ -8,6 +8,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.lib import colors
 import streamlit as st
+import pandas as pd  # Importação adicionada
 
 # ----------------------------------------------
 # CONSTANTES E CONFIGURAÇÕES
@@ -174,6 +175,30 @@ def wrap_text(text, font_name, font_size, available_width, c):
     return lines
 
 # ----------------------------------------------
+# FUNÇÕES DE HISTÓRICO
+# ----------------------------------------------
+
+def carregar_historico(login):
+    """Carrega o histórico de prescrições do usuário a partir de um arquivo JSON."""
+    historico_path = os.path.join(USER_FILES_DIR, login, "historico.json")
+    if not os.path.exists(historico_path):
+        return []
+    with open(historico_path, "r", encoding="utf-8") as f:
+        try:
+            return json.load(f)
+        except:
+            return []
+
+def salvar_historico(login, historico):
+    """Salva o histórico de prescrições do usuário em um arquivo JSON."""
+    user_folder = os.path.join(USER_FILES_DIR, login)
+    if not os.path.exists(user_folder):
+        os.makedirs(user_folder)
+    historico_path = os.path.join(user_folder, "historico.json")
+    with open(historico_path, "w", encoding="utf-8") as f:
+        json.dump(historico, f, indent=4, ensure_ascii=False)
+
+# ----------------------------------------------
 # FUNÇÃO PRINCIPAL PARA GERAR O PDF
 # ----------------------------------------------
 
@@ -306,7 +331,7 @@ def gerar_pdf_receita(
         if cep_match:
             cep_raw = cep_match.group(1)
             cep_formatado = formatar_cep(cep_raw)
-            endereco_formatado = re.sub(r'CEP:\s*\d{5}-\d{3}', f'CEP: {cep_formatado}', endereco_formatado)
+            endereco_formatado = re.sub(r'CEP:\s*\d{5}-\d{3}', f'CEP: {formatar_cep(cep_raw)}', endereco_formatado)
         right_fields.append(("ENDEREÇO: ", endereco_formatado))
 
     c.setFont(font_label, font_label_size)
@@ -731,6 +756,38 @@ def tela_receita():
                 mime="application/pdf"
             )
 
+        # Salvar no Histórico
+        historico = carregar_historico(st.session_state.usuario_logado["login"])
+        historico.append({
+            "Nome do Paciente": paciente,
+            "CPF do Tutor": formatar_cpf(cpf),
+            "Nome do Tutor": tutor,
+            "Medicamento Controlado": "Sim" if eh_controlado == "Sim" else "Não",
+            "Data Emitida": data_receita_str
+        })
+        salvar_historico(st.session_state.usuario_logado["login"], historico)
+        st.success("Prescrição gerada e adicionada ao histórico com sucesso!")
+
+def tela_historico():
+    st.subheader("Histórico de Prescrições")
+
+    # Carrega o histórico do usuário
+    login = st.session_state.usuario_logado["login"]
+    historico = carregar_historico(login)
+
+    if not historico:
+        st.info("Nenhuma prescrição encontrada no histórico.")
+        return
+
+    # Exibe o histórico em uma tabela
+    df_historico = pd.DataFrame(historico)
+    # Ordena por data emitida descendente
+    df_historico['Data Emitida'] = pd.to_datetime(df_historico['Data Emitida'], format="%d/%m/%Y")
+    df_historico = df_historico.sort_values(by='Data Emitida', ascending=False)
+    df_historico['Data Emitida'] = df_historico['Data Emitida'].dt.strftime("%d/%m/%Y")
+
+    st.dataframe(df_historico)
+
 # ----------------------------------------------
 # INTERFACE PRINCIPAL (STREAMLIT)
 # ----------------------------------------------
@@ -778,6 +835,10 @@ def main():
         if st.button("Criar Receituário"):
             st.session_state.current_page = "Criar Receituário"
 
+        # Botão para Histórico
+        if st.button("Histórico"):
+            st.session_state.current_page = "Histórico"
+
         # Botão para Meu Perfil
         if st.button("Meu Perfil"):
             st.session_state.current_page = "Meu Perfil"
@@ -813,6 +874,8 @@ def main():
     with content_col:
         if st.session_state.current_page == "Criar Receituário":
             tela_receita()
+        elif st.session_state.current_page == "Histórico":  # **Nova Condição**
+            tela_historico()
         elif st.session_state.current_page == "Meu Perfil":
             tela_perfil()
         elif st.session_state.current_page == "Administração de Usuários":
