@@ -395,33 +395,31 @@ def gerar_pdf_receita(
 def main():
     st.title("Gerador de Receituário Veterinário")
 
-    # Se não existir no session_state, cria
+    # Verifica se o usuário está autenticado
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
     if "usuario_logado" not in st.session_state:
         st.session_state.usuario_logado = None
 
-    # 1) SE NÃO ESTÁ AUTENTICADO, MOSTRA SÓ O FORM DE LOGIN
+    # TELA DE LOGIN
     if not st.session_state.autenticado:
         st.subheader("Login")
-
         login = st.text_input("Login:")
         senha = st.text_input("Senha:", type="password")
 
+        # Assim que clicar em "Entrar", tenta logar de imediato
         if st.button("Entrar"):
             user_info = verificar_login(login, senha)
             if user_info:
-                # Login deu certo
                 st.session_state.autenticado = True
                 st.session_state.usuario_logado = user_info
+                # Aqui o rerun ajuda a recarregar a tela já logado
+                st.experimental_rerun()
             else:
                 st.error("Login ou senha incorretos.")
+        return  # Se não estiver autenticado, não mostra o resto
 
-        # Se AINDA não autenticou (ou seja, digitou errado ou nem clicou):
-        if not st.session_state.autenticado:
-            return  # ENCERRA A FUNÇÃO E NÃO MOSTRA O RESTO
-
-    # 2) SE CHEGOU AQUI, ENTÃO ESTÁ AUTENTICADO
+    # Se chegou aqui, está autenticado
     usuario_atual = st.session_state.usuario_logado
     st.write(f"Usuário logado: **{usuario_atual['login']}**")
 
@@ -429,7 +427,7 @@ def main():
     if st.button("Sair"):
         st.session_state.autenticado = False
         st.session_state.usuario_logado = None
-        return  # Volta ao login, pois não está mais autenticado
+        st.experimental_rerun()
 
     # MENU LATERAL
     menu = ["Gerar Receita", "Meu Perfil"]
@@ -460,6 +458,8 @@ def main():
             if novo_login and nova_senha:
                 cadastrar_usuario(novo_login, nova_senha, admin_flag)
                 st.success(f"Usuário '{novo_login}' cadastrado/atualizado com sucesso!")
+                # Rerun aqui força atualizar a lista de usuários
+                st.experimental_rerun()
             else:
                 st.warning("É necessário preencher login e senha.")
 
@@ -470,6 +470,8 @@ def main():
             if usuario_remover:
                 remover_usuario(usuario_remover)
                 st.success(f"Usuário '{usuario_remover}' removido com sucesso!")
+                # Rerun aqui força recarregar a lista
+                st.experimental_rerun()
             else:
                 st.warning("Informe o login do usuário a ser removido.")
 
@@ -493,9 +495,11 @@ def main():
         if st.button("Salvar Dados Veterinário"):
             atualizar_dados_veterinario(usuario_atual["login"], nome_vet_input, crmv_input)
             st.success("Dados de Veterinário(a) atualizados!")
-            # Atualiza no session_state local
+            # Atualiza os dados em session_state local
             usuario_atual["nome_vet"] = nome_vet_input
             usuario_atual["crmv"] = crmv_input
+            # Removido o st.experimental_rerun() daqui
+            # A página não recarrega, mas os dados já estão salvos no JSON.
 
         st.write("---")
         # Upload de imagem de fundo
@@ -507,6 +511,7 @@ def main():
             atualizar_imagem_usuario(usuario_atual["login"], fundo_path, tipo="fundo")
             st.success("Imagem de fundo atualizada!")
             usuario_atual["fundo"] = fundo_path
+            # Removido o st.experimental_rerun() também aqui.
 
         # Upload de assinatura
         assinatura_file = st.file_uploader("Upload da Assinatura (opcional)", type=["png", "jpg", "jpeg"])
@@ -517,6 +522,7 @@ def main():
             atualizar_imagem_usuario(usuario_atual["login"], assinatura_path, tipo="assinatura")
             st.success("Assinatura atualizada!")
             usuario_atual["assinatura"] = assinatura_path
+            # Removido também aqui.
 
         st.write("---")
         st.write("**Imagem de fundo atual**:", usuario_atual.get("fundo"))
@@ -557,7 +563,7 @@ def main():
 
             cep_digitado = st.text_input("CEP do Tutor(a):", value=st.session_state.cep_tutor)
 
-            # Se CEP mudar, atualiza
+            # Se CEP mudar, faz a busca
             if cep_digitado != st.session_state.cep_tutor:
                 st.session_state.cep_tutor = cep_digitado
                 if cep_digitado.strip():
@@ -565,6 +571,7 @@ def main():
                     st.session_state.end_busca = dados_end
                 else:
                     st.session_state.end_busca = {}
+                st.experimental_rerun()
 
             dados_cep = st.session_state.end_busca if st.session_state.end_busca else {}
             if dados_cep:
@@ -674,6 +681,9 @@ def main():
             # Cria link de download automático
             html_download = gerar_download_automatico(pdf_path)
             st.markdown(html_download, unsafe_allow_html=True)
+
+            # Se quiser, pode limpar a lista de medicamentos após gerar
+            # st.session_state.lista_medicamentos = []
 
     # ----------------------------------
     # NAVEGAÇÃO ENTRE AS TELAS
