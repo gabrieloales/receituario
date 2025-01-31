@@ -395,34 +395,33 @@ def gerar_pdf_receita(
 def main():
     st.title("Gerador de Receituário Veterinário")
 
-    # Verifica se o usuário está autenticado
+    # Se não existir no session_state, cria
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
     if "usuario_logado" not in st.session_state:
         st.session_state.usuario_logado = None
 
-    # TELA DE LOGIN, se não autenticado
+    # 1) SE NÃO ESTÁ AUTENTICADO, MOSTRA SÓ O FORM DE LOGIN
     if not st.session_state.autenticado:
         st.subheader("Login")
 
         login = st.text_input("Login:")
         senha = st.text_input("Senha:", type="password")
 
-        # Assim que clicar em "Entrar", tenta logar
         if st.button("Entrar"):
             user_info = verificar_login(login, senha)
             if user_info:
-                # Se conseguiu logar, salva estado e segue
+                # Login deu certo
                 st.session_state.autenticado = True
                 st.session_state.usuario_logado = user_info
             else:
                 st.error("Login ou senha incorretos.")
 
-    # Se depois de clicar em "Entrar" ainda não autenticou, para aqui
-    if not st.session_state.autenticado:
-        st.stop()
+        # Se AINDA não autenticou (ou seja, digitou errado ou nem clicou):
+        if not st.session_state.autenticado:
+            return  # ENCERRA A FUNÇÃO E NÃO MOSTRA O RESTO
 
-    # Se chegou aqui, é porque está autenticado
+    # 2) SE CHEGOU AQUI, ENTÃO ESTÁ AUTENTICADO
     usuario_atual = st.session_state.usuario_logado
     st.write(f"Usuário logado: **{usuario_atual['login']}**")
 
@@ -430,7 +429,7 @@ def main():
     if st.button("Sair"):
         st.session_state.autenticado = False
         st.session_state.usuario_logado = None
-        st.stop()  # Interrompe aqui para não exibir o resto
+        return  # Volta ao login, pois não está mais autenticado
 
     # MENU LATERAL
     menu = ["Gerar Receita", "Meu Perfil"]
@@ -461,7 +460,6 @@ def main():
             if novo_login and nova_senha:
                 cadastrar_usuario(novo_login, nova_senha, admin_flag)
                 st.success(f"Usuário '{novo_login}' cadastrado/atualizado com sucesso!")
-                # O Streamlit vai recarregar naturalmente ao clicar no botão
             else:
                 st.warning("É necessário preencher login e senha.")
 
@@ -495,7 +493,7 @@ def main():
         if st.button("Salvar Dados Veterinário"):
             atualizar_dados_veterinario(usuario_atual["login"], nome_vet_input, crmv_input)
             st.success("Dados de Veterinário(a) atualizados!")
-            # Atualiza os dados em session_state local
+            # Atualiza no session_state local
             usuario_atual["nome_vet"] = nome_vet_input
             usuario_atual["crmv"] = crmv_input
 
@@ -559,7 +557,7 @@ def main():
 
             cep_digitado = st.text_input("CEP do Tutor(a):", value=st.session_state.cep_tutor)
 
-            # Se CEP mudar, faz a busca
+            # Se CEP mudar, atualiza
             if cep_digitado != st.session_state.cep_tutor:
                 st.session_state.cep_tutor = cep_digitado
                 if cep_digitado.strip():
@@ -676,9 +674,6 @@ def main():
             # Cria link de download automático
             html_download = gerar_download_automatico(pdf_path)
             st.markdown(html_download, unsafe_allow_html=True)
-
-            # Se quiser, pode limpar a lista de medicamentos após gerar
-            # st.session_state.lista_medicamentos = []
 
     # ----------------------------------
     # NAVEGAÇÃO ENTRE AS TELAS
