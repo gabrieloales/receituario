@@ -756,16 +756,14 @@ def tela_receita():
                 mime="application/pdf"
             )
 
-        # Salvar no Histórico com Detalhes Completos
+        # Salvar no Histórico
         historico = carregar_historico(st.session_state.usuario_logado["login"])
         historico.append({
             "Nome do Paciente": paciente,
             "CPF do Tutor": formatar_cpf(cpf),
             "Nome do Tutor": tutor,
             "Medicamento Controlado": "Sim" if eh_controlado == "Sim" else "Não",
-            "Data Emitida": data_receita_str,
-            "Lista de Medicamentos": st.session_state.lista_medicamentos,  # Adicionado
-            "Instruções de Uso": instrucoes_uso  # Adicionado
+            "Data Emitida": data_receita_str
         })
         salvar_historico(st.session_state.usuario_logado["login"], historico)
         st.success("Prescrição gerada e adicionada ao histórico com sucesso!")
@@ -781,32 +779,114 @@ def tela_historico():
         st.info("Nenhuma prescrição encontrada no histórico.")
         return
 
-    # Ordena o histórico por data emitida descendente
-    historico_sorted = sorted(
-        historico,
-        key=lambda x: datetime.datetime.strptime(x['Data Emitida'], "%d/%m/%Y"),
-        reverse=True
-    )
+    # Exibe o histórico em uma tabela
+    df_historico = pd.DataFrame(historico)
+    # Ordena por data emitida descendente
+    df_historico['Data Emitida'] = pd.to_datetime(df_historico['Data Emitida'], format="%d/%m/%Y")
+    df_historico = df_historico.sort_values(by='Data Emitida', ascending=False)
+    df_historico['Data Emitida'] = df_historico['Data Emitida'].dt.strftime("%d/%m/%Y")
 
-    for idx, entry in enumerate(historico_sorted, start=1):
-        st.markdown(f"### Prescrição {idx}")
-        col1, col2 = st.columns([3, 1])
+    st.dataframe(df_historico)
 
-        with col1:
-            st.write(f"**Nome do Paciente:** {entry['Nome do Paciente']}")
-            st.write(f"**CPF do Tutor:** {entry['CPF do Tutor']}")
-            st.write(f"**Nome do Tutor:** {entry['Nome do Tutor']}")
-            st.write(f"**Medicamento Controlado:** {entry['Medicamento Controlado']}")
-            st.write(f"**Data Emitida:** {entry['Data Emitida']}")
+# ----------------------------------------------
+# INTERFACE PRINCIPAL (STREAMLIT)
+# ----------------------------------------------
+def main():
+    st.set_page_config(layout="wide")  # Permite uso mais flexível do layout
+    st.title("VetyRx - Receituário Veterinário")
 
-        with col2:
-            with st.expander("Ver Detalhes"):
-                st.write("**Lista de Medicamentos:**")
-                for med_idx, med in enumerate(entry['Lista de Medicamentos'], start=1):
-                    st.write(f"{med_idx}. **Quantidade:** {med['quantidade']}")
-                    st.write(f"   **Medicamento:** {med['nome']}")
-                    st.write(f"   **Concentração:** {med['concentracao']}")
-                st.write("**Instruções de Uso:**")
-                st.write(entry['Instruções de Uso'])
-        
+    # Verifica se o usuário está autenticado
+    if "autenticado" not in st.session_state:
+        st.session_state.autenticado = False
+
+    if "usuario_logado" not in st.session_state:
+        st.session_state.usuario_logado = None
+
+    # ----------------------------------
+    # TELA DE LOGIN
+    # ----------------------------------
+    if not st.session_state.autenticado:
+        st.subheader("Login")
+        login = st.text_input("Login:")
+        senha = st.text_input("Senha:", type="password")
+        if st.button("Entrar"):
+            user_info = verificar_login(login, senha)
+            if user_info:
+                st.session_state.autenticado = True
+                st.session_state.usuario_logado = user_info
+                st.success("Login bem-sucedido!")
+            else:
+                st.error("Login ou senha incorretos.")
+        return  # Impede o acesso ao restante do aplicativo se não estiver autenticado
+
+    # Se chegou aqui, está autenticado
+    usuario_atual = st.session_state.usuario_logado
+
+    # ----------------------------------
+    # LAYOUT COM DUAS COLUNAS: NAVIGAÇÃO E CONTEÚDO
+    # ----------------------------------
+    left_col_width = 2  # Proporção da coluna de navegação
+    content_col_width = 10  # Proporção da coluna de conteúdo
+    left_col, content_col = st.columns([left_col_width, content_col_width])
+
+    with left_col:
+        st.markdown("### Menu de Navegação")
+        # Botão para Criar Receituário
+        if st.button("Criar Receituário"):
+            st.session_state.current_page = "Criar Receituário"
+
+        # Botão para Histórico
+        if st.button("Histórico"):
+            st.session_state.current_page = "Histórico"
+
+        # Botão para Meu Perfil
+        if st.button("Meu Perfil"):
+            st.session_state.current_page = "Meu Perfil"
+
+        # Botão para Administração de Usuários (apenas para admins)
+        if usuario_atual["is_admin"]:
+            if st.button("Administração de Usuários"):
+                st.session_state.current_page = "Administração de Usuários"
+
+        # Adiciona espaço para empurrar os elementos para baixo
+        st.write("\n" * 20)
+
+        # Informações do usuário logado e botão sair no canto inferior esquerdo
         st.markdown("---")
+        st.write(f"**Usuário logado:** {usuario_atual['login']}")
+        if st.button("Sair"):
+            # Redefine as variáveis de estado
+            st.session_state.autenticado = False
+            st.session_state.usuario_logado = None
+            # Limpa quaisquer outras variáveis de sessão que possam existir
+            if "lista_medicamentos" in st.session_state:
+                del st.session_state.lista_medicamentos
+            if "current_page" in st.session_state:
+                del st.session_state.current_page
+            st.success("Logout realizado com sucesso!")
+            # O Streamlit automaticamente reexecuta o script após a interação
+
+    # Definir página atual se ainda não estiver definida
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = "Criar Receituário"
+
+    # Exibir a página correspondente na coluna de conteúdo
+    with content_col:
+        if st.session_state.current_page == "Criar Receituário":
+            tela_receita()
+        elif st.session_state.current_page == "Histórico":  # **Nova Condição**
+            tela_historico()
+        elif st.session_state.current_page == "Meu Perfil":
+            tela_perfil()
+        elif st.session_state.current_page == "Administração de Usuários":
+            tela_admin()
+
+# ----------------------------------------------
+# INICIALIZAÇÃO
+# ----------------------------------------------
+if __name__ == "__main__":
+    # Cria pasta para arquivos de usuários, se não existir
+    if not os.path.exists(USER_FILES_DIR):
+        os.makedirs(USER_FILES_DIR)
+
+    main()
