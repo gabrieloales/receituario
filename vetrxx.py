@@ -45,7 +45,7 @@ def verificar_login(login, senha):
             "assinatura": None,
             "nome_vet": None,
             "crmv": None,
-            "SIPEAGRO": None  # ### ALTERAÇÃO: Adicionando SIPEAGRO para admin por consistência ###
+            "sipeagro": None  # ### ALTERAÇÃO: Adicionando sipeagro para admin por consistência ###
         }
     usuarios = carregar_usuarios()
     user_data = usuarios.get(login)
@@ -57,18 +57,18 @@ def verificar_login(login, senha):
             "assinatura": user_data.get("signature_image"),
             "nome_vet": user_data.get("nome_vet"),
             "crmv": user_data.get("crmv"),
-            "SIPEAGRO": user_data.get("SIPEAGRO")  # ### ALTERAÇÃO: Carregar SIPEAGRO do usuário ###
+            "sipeagro": user_data.get("sipeagro")  # ### ALTERAÇÃO: Carregar sipeagro do usuário ###
         }
     return None
 
-def cadastrar_usuario(novo_login, nova_senha, nome_vet=None, crmv=None, SIPEAGRO=None, is_admin=False):
+def cadastrar_usuario(novo_login, nova_senha, nome_vet=None, crmv=None, sipeagro=None, is_admin=False):
     """Cadastra (ou atualiza) um usuário no sistema.
 
     :param novo_login: str
     :param nova_senha: str
     :param nome_vet: str ou None
     :param crmv: str ou None
-    :param SIPEAGRO: str ou None  ### ALTERAÇÃO: Recebendo SIPEAGRO ###
+    :param sipeagro: str ou None  ### ALTERAÇÃO: Recebendo Sipeagro ###
     :param is_admin: bool
     """
     usuarios = carregar_usuarios()
@@ -78,7 +78,7 @@ def cadastrar_usuario(novo_login, nova_senha, nome_vet=None, crmv=None, SIPEAGRO
     usuarios[novo_login]["is_admin"] = is_admin
     usuarios[novo_login]["nome_vet"] = nome_vet
     usuarios[novo_login]["crmv"] = crmv
-    usuarios[novo_login]["SIPEAGRO"] = SIPEAGRO  # ### ALTERAÇÃO: Salvando SIPEAGRO ###
+    usuarios[novo_login]["sipeagro"] = sipeagro  # ### ALTERAÇÃO: Salvando Sipeagro ###
     if "background_image" not in usuarios[novo_login]:
         usuarios[novo_login]["background_image"] = None
     if "signature_image" not in usuarios[novo_login]:
@@ -205,12 +205,12 @@ def gerar_pdf_receita(
     imagem_assinatura=None,
     nome_vet=None,
     crmv=None,
-    SIPEAGRO=None,            # ### ALTERAÇÃO: Receber SIPEAGRO
-    mostrar_SIPEAGRO=False   # ### ALTERAÇÃO: Controla exibição do SIPEAGRO na receita
+    sipeagro=None,            # ### ALTERAÇÃO: Receber sipeagro
+    mostrar_sipeagro=False   # ### ALTERAÇÃO: Controla exibição do Sipeagro na receita
 ):
     """
     Gera o PDF de receita veterinária.
-    Se mostrar_SIPEAGRO for True e SIPEAGRO estiver preenchido, exibe o número abaixo do CRMV.
+    Se mostrar_sipeagro for True e sipeagro estiver preenchido, exibe o número abaixo do CRMV.
     """
     if lista_medicamentos is None:
         lista_medicamentos = []
@@ -237,7 +237,7 @@ def gerar_pdf_receita(
     margem_direita = 2 * cm
     largura_util = largura - margem_esquerda - margem_direita
 
-    # ### ALTERAÇÃO: Adicionamos SIPEAGRO_y para posicionar
+    # ### ALTERAÇÃO: Adicionamos sipeagro_y para posicionar
     config_posicoes = {
         "assinatura_x": (largura / 2) - 4 * cm,
         "assinatura_y": 6.3 * cm,
@@ -246,7 +246,7 @@ def gerar_pdf_receita(
         "data_y": 5.8 * cm,
         "mv_y": 5.3 * cm,
         "crmv_y": 4.8 * cm,
-        "SIPEAGRO_y": 4.3 * cm  # Nova posição para SIPEAGRO
+        "sipeagro_y": 4.3 * cm  # Nova posição para Sipeagro
     }
 
     # Inserção de imagem de fundo
@@ -408,9 +408,9 @@ def gerar_pdf_receita(
     c.drawCentredString(x_assinatura, config_posicoes["mv_y"], f"M. V. {nome_vet_up}")
     c.drawCentredString(x_assinatura, config_posicoes["crmv_y"], f"CRMV-PR: {crmv}")
 
-    # ### ALTERAÇÃO: Exibir SIPEAGRO somente se for controlado e se houver valor ###
-    if mostrar_SIPEAGRO and SIPEAGRO:
-        c.drawCentredString(x_assinatura, config_posicoes["SIPEAGRO_y"], f"SIPEAGRO: {SIPEAGRO}")
+    # ### ALTERAÇÃO: Exibir Sipeagro somente se for controlado e se houver valor ###
+    if mostrar_sipeagro and sipeagro:
+        c.drawCentredString(x_assinatura, config_posicoes["sipeagro_y"], f"Sipeagro: {sipeagro}")
 
     c.showPage()
     c.save()
@@ -430,7 +430,7 @@ def tela_admin():
                 f"- **Login**: {u} | Admin: {data.get('is_admin', False)} | "
                 f"Nome Vet: {data.get('nome_vet', 'Não definido')} | "
                 f"CRMV: {data.get('crmv', 'Não definido')} | "
-                f"SIPEAGRO: {data.get('SIPEAGRO', 'Não definido')}"  # ### ALTERAÇÃO: Exibir SIPEAGRO na listagem
+                f"Sipeagro: {data.get('sipeagro', 'Não definido')}"  # ### ALTERAÇÃO: Exibir sipeagro na listagem
             )
     else:
         st.write("Não há usuários cadastrados no arquivo.")
@@ -442,19 +442,19 @@ def tela_admin():
     admin_flag = st.checkbox("Usuário é administrador?", key="admin_flag")
     nome_vet = st.text_input("Nome do(a) Veterinário(a)", key="nome_vet")
     crmv = st.text_input("CRMV (somente números ou ex: 12345)", key="crmv")
-    # ### ALTERAÇÃO: Campo SIPEAGRO ###
-    SIPEAGRO = st.text_input("SIPEAGRO (apenas números - se aplicável)", key="SIPEAGRO")
+    # ### ALTERAÇÃO: Campo Sipeagro ###
+    sipeagro = st.text_input("Sipeagro (apenas números - se aplicável)", key="sipeagro")
 
     if st.button("Cadastrar/Atualizar Usuário"):
         if novo_login and nova_senha and nome_vet and crmv:
-            cadastrar_usuario(novo_login, nova_senha, nome_vet=nome_vet, crmv=crmv, SIPEAGRO=SIPEAGRO, is_admin=admin_flag)
+            cadastrar_usuario(novo_login, nova_senha, nome_vet=nome_vet, crmv=crmv, sipeagro=sipeagro, is_admin=admin_flag)
             st.success(f"Usuário '{novo_login}' cadastrado/atualizado com sucesso!")
             st.session_state.novo_login = ""
             st.session_state.nova_senha = ""
             st.session_state.admin_flag = False
             st.session_state.nome_vet = ""
             st.session_state.crmv = ""
-            st.session_state.SIPEAGRO = ""
+            st.session_state.sipeagro = ""
         else:
             st.warning("É necessário preencher login, senha, nome do(a) veterinário(a) e CRMV.")
     st.write("---")
@@ -500,9 +500,9 @@ def tela_perfil():
     st.write("**Nome Vet:**", st.session_state.usuario_logado.get("nome_vet") or "Não definido")
     st.write("**CRMV:**", st.session_state.usuario_logado.get("crmv") or "Não definido")
 
-    # ### OPCIONAL: Você poderia exibir o SIPEAGRO do usuário aqui também, se desejar ###
-    SIPEAGRO_logado = st.session_state.usuario_logado.get("SIPEAGRO") or "Não definido"
-    st.write("**SIPEAGRO:**", SIPEAGRO_logado)
+    # ### OPCIONAL: Você poderia exibir o Sipeagro do usuário aqui também, se desejar ###
+    sipeagro_logado = st.session_state.usuario_logado.get("sipeagro") or "Não definido"
+    st.write("**Sipeagro:**", sipeagro_logado)
 
 def tela_receita():
     st.subheader("Criar Receituário")
@@ -645,15 +645,15 @@ def tela_receita():
         imagem_assinatura = st.session_state.usuario_logado.get("assinatura")
         nome_vet = st.session_state.usuario_logado.get("nome_vet") or ""
         crmv = st.session_state.usuario_logado.get("crmv") or ""
-        SIPEAGRO = st.session_state.usuario_logado.get("SIPEAGRO") or ""
+        sipeagro = st.session_state.usuario_logado.get("sipeagro") or ""
 
         cpf_formatado = formatar_cpf(cpf)
         paciente_sanitizado = re.sub(r'[^\w\s-]', '', paciente).strip().replace(' ', '_')
         nome_pdf = f"{paciente_sanitizado} - {cpf_formatado}.pdf"
         data_receita_str = data_receita.strftime("%d/%m/%Y")
 
-        # ### ALTERAÇÃO: mostrar_SIPEAGRO baseado na escolha "Sim" para controlado
-        mostrar_SIPEAGRO = (eh_controlado == "Sim")
+        # ### ALTERAÇÃO: mostrar_sipeagro baseado na escolha "Sim" para controlado
+        mostrar_sipeagro = (eh_controlado == "Sim")
 
         nome_pdf = gerar_pdf_receita(
             nome_pdf=nome_pdf,
@@ -675,8 +675,8 @@ def tela_receita():
             imagem_assinatura=imagem_assinatura,
             nome_vet=nome_vet,
             crmv=crmv,
-            SIPEAGRO=SIPEAGRO,          # ### ALTERAÇÃO
-            mostrar_SIPEAGRO=mostrar_SIPEAGRO,  # ### ALTERAÇÃO
+            sipeagro=sipeagro,          # ### ALTERAÇÃO
+            mostrar_sipeagro=mostrar_sipeagro,  # ### ALTERAÇÃO
             data_receita=data_receita_str
         )
 
