@@ -44,7 +44,8 @@ def verificar_login(login, senha):
             "fundo": None,
             "assinatura": None,
             "nome_vet": None,
-            "crmv": None
+            "crmv": None,
+            "sipeagro": None  # ### ALTERAÇÃO: Adicionando sipeagro para admin por consistência ###
         }
     usuarios = carregar_usuarios()
     user_data = usuarios.get(login)
@@ -55,11 +56,21 @@ def verificar_login(login, senha):
             "fundo": user_data.get("background_image"),
             "assinatura": user_data.get("signature_image"),
             "nome_vet": user_data.get("nome_vet"),
-            "crmv": user_data.get("crmv")
+            "crmv": user_data.get("crmv"),
+            "sipeagro": user_data.get("sipeagro")  # ### ALTERAÇÃO: Carregar sipeagro do usuário ###
         }
     return None
 
-def cadastrar_usuario(novo_login, nova_senha, nome_vet=None, crmv=None, is_admin=False):
+def cadastrar_usuario(novo_login, nova_senha, nome_vet=None, crmv=None, sipeagro=None, is_admin=False):
+    """Cadastra (ou atualiza) um usuário no sistema.
+
+    :param novo_login: str
+    :param nova_senha: str
+    :param nome_vet: str ou None
+    :param crmv: str ou None
+    :param sipeagro: str ou None  ### ALTERAÇÃO: Recebendo Sipeagro ###
+    :param is_admin: bool
+    """
     usuarios = carregar_usuarios()
     if novo_login not in usuarios:
         usuarios[novo_login] = {}
@@ -67,6 +78,7 @@ def cadastrar_usuario(novo_login, nova_senha, nome_vet=None, crmv=None, is_admin
     usuarios[novo_login]["is_admin"] = is_admin
     usuarios[novo_login]["nome_vet"] = nome_vet
     usuarios[novo_login]["crmv"] = crmv
+    usuarios[novo_login]["sipeagro"] = sipeagro  # ### ALTERAÇÃO: Salvando Sipeagro ###
     if "background_image" not in usuarios[novo_login]:
         usuarios[novo_login]["background_image"] = None
     if "signature_image" not in usuarios[novo_login]:
@@ -192,8 +204,14 @@ def gerar_pdf_receita(
     imagem_fundo=None,
     imagem_assinatura=None,
     nome_vet=None,
-    crmv=None
+    crmv=None,
+    sipeagro=None,            # ### ALTERAÇÃO: Receber sipeagro
+    mostrar_sipeagro=False   # ### ALTERAÇÃO: Controla exibição do Sipeagro na receita
 ):
+    """
+    Gera o PDF de receita veterinária.
+    Se mostrar_sipeagro for True e sipeagro estiver preenchido, exibe o número abaixo do CRMV.
+    """
     if lista_medicamentos is None:
         lista_medicamentos = []
     if not data_receita:
@@ -219,6 +237,7 @@ def gerar_pdf_receita(
     margem_direita = 2 * cm
     largura_util = largura - margem_esquerda - margem_direita
 
+    # ### ALTERAÇÃO: Adicionamos sipeagro_y para posicionar
     config_posicoes = {
         "assinatura_x": (largura / 2) - 4 * cm,
         "assinatura_y": 6.3 * cm,
@@ -226,9 +245,11 @@ def gerar_pdf_receita(
         "assinatura_height": 1.5 * cm,
         "data_y": 5.8 * cm,
         "mv_y": 5.3 * cm,
-        "crmv_y": 4.8 * cm
+        "crmv_y": 4.8 * cm,
+        "sipeagro_y": 4.3 * cm  # Nova posição para Sipeagro
     }
 
+    # Inserção de imagem de fundo
     if imagem_fundo and os.path.exists(imagem_fundo):
         try:
             c.drawImage(
@@ -242,6 +263,7 @@ def gerar_pdf_receita(
         except Exception as e:
             st.warning(f"[Aviso] Não foi possível inserir a imagem de fundo: {e}")
 
+    # Título (Tipo de Farmácia)
     c.setFont(font_label, font_title_size)
     c.drawCentredString(largura / 2, altura - 4 * cm, tipo_farmacia.upper())
 
@@ -252,6 +274,7 @@ def gerar_pdf_receita(
     y_right = altura - 5 * cm
     esp_line = 0.7 * cm
 
+    # Coluna da esquerda (paciente, espécie, etc.)
     left_fields = [
         ("PACIENTE: ", paciente),
         ("ESPÉCIE - RAÇA: ", especie_raca),
@@ -271,6 +294,7 @@ def gerar_pdf_receita(
         c.setFont(font_label, font_label_size)
         y_left -= esp_line
 
+    # Coluna da direita (tutor, CPF, RG, endereço)
     right_fields = [
         ("TUTOR(A): ", tutor),
         ("CPF: ", formatar_cpf(cpf))
@@ -278,6 +302,7 @@ def gerar_pdf_receita(
     if rg:
         right_fields.append(("RG: ", rg))
     if endereco_formatado:
+        # Formatação de CEP se existir
         cep_match = re.search(r'CEP:\s*(\d{5}-\d{3})', endereco_formatado)
         if cep_match:
             cep_raw = cep_match.group(1)
@@ -308,9 +333,9 @@ def gerar_pdf_receita(
 
     y_campos = min(y_left, y_right) - 0.5 * cm
 
+    # Medicamentos
     y_inicial = y_campos - 1.2 * cm
     c.setFont("Helvetica-Bold", font_med_title)
-    esp_med = 1.6 * cm
     y_atual = y_inicial
     for i, med in enumerate(lista_medicamentos, start=1):
         qtd = med.get("quantidade", "").upper()
@@ -332,6 +357,7 @@ def gerar_pdf_receita(
         c.line(margem_esquerda, y_atual + 0.3 * cm, largura - margem_direita, y_atual + 0.3 * cm)
         y_atual -= 0.4 * cm
 
+    # Instruções de uso
     y_inst = y_atual - 1.5 * cm
     c.setFont("Helvetica-Bold", font_med_title)
     c.drawString(margem_esquerda, y_inst, "INSTRUÇÕES DE USO: ")
@@ -343,6 +369,7 @@ def gerar_pdf_receita(
             c.drawString(margem_esquerda, y_texto, l)
             y_texto -= 0.6 * cm
 
+    # Curva ilustrativa
     y_curva_inicial = y_texto - 1.5 * cm
     if y_curva_inicial < 0:
         y_curva_inicial = 0
@@ -355,6 +382,7 @@ def gerar_pdf_receita(
              largura - margem_direita, y_curva_final)
     c.setStrokeColor(colors.black)
 
+    # Assinatura e rodapé
     x_assinatura = config_posicoes["assinatura_x"]
     y_assinatura = config_posicoes["assinatura_y"]
     assinatura_width = config_posicoes["assinatura_width"]
@@ -380,6 +408,10 @@ def gerar_pdf_receita(
     c.drawCentredString(x_assinatura, config_posicoes["mv_y"], f"M. V. {nome_vet_up}")
     c.drawCentredString(x_assinatura, config_posicoes["crmv_y"], f"CRMV-PR: {crmv}")
 
+    # ### ALTERAÇÃO: Exibir Sipeagro somente se for controlado e se houver valor ###
+    if mostrar_sipeagro and sipeagro:
+        c.drawCentredString(x_assinatura, config_posicoes["sipeagro_y"], f"Sipeagro: {sipeagro}")
+
     c.showPage()
     c.save()
     return nome_pdf
@@ -394,28 +426,39 @@ def tela_admin():
     usuarios = carregar_usuarios()
     if usuarios:
         for u, data in usuarios.items():
-            st.write(f"- **Login**: {u} | Admin: {data.get('is_admin', False)} | Nome Vet: {data.get('nome_vet', 'Não definido')} | CRMV: {data.get('crmv', 'Não definido')}")
+            st.write(
+                f"- **Login**: {u} | Admin: {data.get('is_admin', False)} | "
+                f"Nome Vet: {data.get('nome_vet', 'Não definido')} | "
+                f"CRMV: {data.get('crmv', 'Não definido')} | "
+                f"Sipeagro: {data.get('sipeagro', 'Não definido')}"  # ### ALTERAÇÃO: Exibir sipeagro na listagem
+            )
     else:
         st.write("Não há usuários cadastrados no arquivo.")
     st.write("---")
+
     st.write("### Cadastrar/Atualizar Usuário")
     novo_login = st.text_input("Login do Usuário", key="novo_login")
     nova_senha = st.text_input("Senha do Usuário", type="password", key="nova_senha")
     admin_flag = st.checkbox("Usuário é administrador?", key="admin_flag")
     nome_vet = st.text_input("Nome do(a) Veterinário(a)", key="nome_vet")
     crmv = st.text_input("CRMV (somente números ou ex: 12345)", key="crmv")
+    # ### ALTERAÇÃO: Campo Sipeagro ###
+    sipeagro = st.text_input("Sipeagro (apenas números - se aplicável)", key="sipeagro")
+
     if st.button("Cadastrar/Atualizar Usuário"):
         if novo_login and nova_senha and nome_vet and crmv:
-            cadastrar_usuario(novo_login, nova_senha, nome_vet=nome_vet, crmv=crmv, is_admin=admin_flag)
+            cadastrar_usuario(novo_login, nova_senha, nome_vet=nome_vet, crmv=crmv, sipeagro=sipeagro, is_admin=admin_flag)
             st.success(f"Usuário '{novo_login}' cadastrado/atualizado com sucesso!")
             st.session_state.novo_login = ""
             st.session_state.nova_senha = ""
             st.session_state.admin_flag = False
             st.session_state.nome_vet = ""
             st.session_state.crmv = ""
+            st.session_state.sipeagro = ""
         else:
             st.warning("É necessário preencher login, senha, nome do(a) veterinário(a) e CRMV.")
     st.write("---")
+
     st.write("### Remover Usuário")
     usuario_remover = st.text_input("Login do usuário para remover:", key="usuario_remover")
     if st.button("Remover"):
@@ -432,6 +475,7 @@ def tela_perfil():
     user_folder = os.path.join(USER_FILES_DIR, st.session_state.usuario_logado["login"])
     if not os.path.exists(user_folder):
         os.makedirs(user_folder)
+
     fundo_file = st.file_uploader("Upload da Imagem de Fundo (opcional)", type=["png", "jpg", "jpeg"], key="fundo_file")
     if fundo_file is not None:
         fundo_path = os.path.join(user_folder, "fundo_" + fundo_file.name)
@@ -440,6 +484,7 @@ def tela_perfil():
         atualizar_imagem_usuario(st.session_state.usuario_logado["login"], fundo_path, tipo="fundo")
         st.success("Imagem de fundo atualizada com sucesso!")
         st.session_state.usuario_logado["fundo"] = fundo_path
+
     assinatura_file = st.file_uploader("Upload da Assinatura (opcional)", type=["png", "jpg", "jpeg"], key="assinatura_file")
     if assinatura_file is not None:
         assinatura_path = os.path.join(user_folder, "assinatura_" + assinatura_file.name)
@@ -448,11 +493,16 @@ def tela_perfil():
         atualizar_imagem_usuario(st.session_state.usuario_logado["login"], assinatura_path, tipo="assinatura")
         st.success("Assinatura atualizada com sucesso!")
         st.session_state.usuario_logado["assinatura"] = assinatura_path
+
     st.write("---")
     st.write("**Imagem de fundo atual**:", os.path.basename(st.session_state.usuario_logado.get("fundo")) if st.session_state.usuario_logado.get("fundo") else "Nenhuma")
     st.write("**Assinatura atual**:", os.path.basename(st.session_state.usuario_logado.get("assinatura")) if st.session_state.usuario_logado.get("assinatura") else "Nenhuma")
     st.write("**Nome Vet:**", st.session_state.usuario_logado.get("nome_vet") or "Não definido")
     st.write("**CRMV:**", st.session_state.usuario_logado.get("crmv") or "Não definido")
+
+    # ### OPCIONAL: Você poderia exibir o Sipeagro do usuário aqui também, se desejar ###
+    sipeagro_logado = st.session_state.usuario_logado.get("sipeagro") or "Não definido"
+    st.write("**Sipeagro:**", sipeagro_logado)
 
 def tela_receita():
     st.subheader("Criar Receituário")
@@ -471,6 +521,7 @@ def tela_receita():
     ]
     tipo_farmacia = st.selectbox("Selecione o tipo de Farmácia:", opcoes_farmacia)
     eh_controlado = st.radio("Medicamento Controlado?", ("Não", "Sim"))
+
     rg = ""
     endereco_formatado = ""
     if eh_controlado == "Sim":
@@ -523,6 +574,7 @@ def tela_receita():
                     endereco_formatado += f" - CEP: {cep_formatado}"
                 else:
                     st.warning("CEP inválido. Deve estar no formato 12345-678.")
+
     paciente = st.text_input("Nome do Paciente:", key="paciente")
     especie_raca = st.text_input("Espécie - Raça:", key="especie_raca")
     pelagem = st.text_input("Pelagem:", key="pelagem")
@@ -532,6 +584,7 @@ def tela_receita():
     chip = st.text_input("Número do Chip (se houver):", key="chip")
     tutor = st.text_input("Nome do Tutor(a):", key="tutor")
     cpf = st.text_input("CPF do Tutor(a):", key="cpf")
+
     with st.form(key='form_medicamentos', clear_on_submit=False):
         qtd_med = st.text_input("Quantidade do Medicamento:", key="qtd_med")
         nome_med = st.text_input("Nome do Medicamento:", key="nome_med")
@@ -547,6 +600,7 @@ def tela_receita():
                 st.success("Medicamento adicionado!")
             else:
                 st.warning("Informe quantidade e nome do medicamento.")
+
     st.write("### Medicamentos Adicionados:")
     if st.session_state.lista_medicamentos:
         for i, med in enumerate(st.session_state.lista_medicamentos, start=1):
@@ -557,9 +611,12 @@ def tela_receita():
             st.write(texto_med)
     else:
         st.write("Nenhum medicamento adicionado.")
+
     instrucoes_uso = st.text_area("Digite as instruções de uso:", key="instrucoes_uso")
     data_receita = st.date_input("Data da Receita:", value=datetime.date.today(), help="Selecione a data da receita. O padrão é a data atual.", key="data_receita")
+
     if st.button("Gerar Receita"):
+        # Validações básicas
         if eh_controlado == "Sim":
             if not rg:
                 st.error("RG do Tutor(a) é obrigatório para medicamentos controlados.")
@@ -582,14 +639,22 @@ def tela_receita():
             if not re.fullmatch(r'\d{5}-\d{3}', cep_formatado):
                 st.error("CEP inválido. Deve estar no formato 12345-678.")
                 return
+
+        # Carregando dados do usuário logado
         imagem_fundo = st.session_state.usuario_logado.get("fundo")
         imagem_assinatura = st.session_state.usuario_logado.get("assinatura")
         nome_vet = st.session_state.usuario_logado.get("nome_vet") or ""
         crmv = st.session_state.usuario_logado.get("crmv") or ""
+        sipeagro = st.session_state.usuario_logado.get("sipeagro") or ""
+
         cpf_formatado = formatar_cpf(cpf)
         paciente_sanitizado = re.sub(r'[^\w\s-]', '', paciente).strip().replace(' ', '_')
         nome_pdf = f"{paciente_sanitizado} - {cpf_formatado}.pdf"
         data_receita_str = data_receita.strftime("%d/%m/%Y")
+
+        # ### ALTERAÇÃO: mostrar_sipeagro baseado na escolha "Sim" para controlado
+        mostrar_sipeagro = (eh_controlado == "Sim")
+
         nome_pdf = gerar_pdf_receita(
             nome_pdf=nome_pdf,
             tipo_farmacia=tipo_farmacia,
@@ -610,14 +675,20 @@ def tela_receita():
             imagem_assinatura=imagem_assinatura,
             nome_vet=nome_vet,
             crmv=crmv,
+            sipeagro=sipeagro,          # ### ALTERAÇÃO
+            mostrar_sipeagro=mostrar_sipeagro,  # ### ALTERAÇÃO
             data_receita=data_receita_str
         )
+
+        # Download do PDF
         with open(nome_pdf, "rb") as f:
             st.download_button(label="Baixar Receita", data=f, file_name=nome_pdf, mime="application/pdf")
+
+        # Salvando no histórico
         historico = carregar_historico(st.session_state.usuario_logado["login"])
         registro = {
             "Nome do Paciente": paciente,
-            "CPF do Tutor": formatar_cpf(cpf),
+            "CPF do Tutor": cpf_formatado,
             "Nome do Tutor": tutor,
             "Medicamento Controlado": "Sim" if eh_controlado == "Sim" else "Não",
             "Data Emitida": data_receita_str,
@@ -634,10 +705,11 @@ def tela_receita():
             registro["Endereço"] = endereco_formatado
         historico.append(registro)
         salvar_historico(st.session_state.usuario_logado["login"], historico)
+
         st.success("Prescrição gerada e adicionada ao histórico com sucesso!")
+
         # Reset dos campos após gerar a receita
         st.session_state.lista_medicamentos = []
-        # Os demais valores serão reiniciados conforme os valores padrão dos widgets (via key)
 
 def tela_historico():
     st.subheader("Histórico de Prescrições")
@@ -646,6 +718,7 @@ def tela_historico():
     if not historico:
         st.info("Nenhuma prescrição encontrada no histórico.")
         return
+
     col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 2, 2, 2, 1])
     col1.markdown("**Paciente**")
     col2.markdown("**CPF Tutor**")
@@ -653,6 +726,7 @@ def tela_historico():
     col4.markdown("**Ctrl?**")
     col5.markdown("**Data**")
     col6.markdown("**Detalhes**")
+
     for idx, registro in enumerate(historico):
         col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 2, 2, 2, 1])
         col1.write(registro.get("Nome do Paciente", ""))
@@ -699,16 +773,19 @@ def tela_detalhes():
         st.write(instrucoes)
     else:
         st.write("Nenhum detalhe encontrado.")
+
     if st.button("Voltar"):
         st.session_state.current_page = "Histórico"
 
 def main():
     st.set_page_config(layout="wide")
     st.title("VetyRx - Receituário Veterinário")
+
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
     if "usuario_logado" not in st.session_state:
         st.session_state.usuario_logado = None
+
     if not st.session_state.autenticado:
         st.subheader("Login")
         login = st.text_input("Login:")
@@ -722,10 +799,12 @@ def main():
             else:
                 st.error("Login ou senha incorretos.")
         return
+
     usuario_atual = st.session_state.usuario_logado
     left_col_width = 2
     content_col_width = 10
     left_col, content_col = st.columns([left_col_width, content_col_width])
+
     with left_col:
         st.markdown("### Menu de Navegação")
         if st.button("Criar Receituário"):
@@ -738,6 +817,7 @@ def main():
         if usuario_atual["is_admin"]:
             if st.button("Administração de Usuários"):
                 st.session_state.current_page = "Administração de Usuários"
+
         st.write("\n" * 20)
         st.markdown("---")
         st.write(f"**Usuário logado:** {usuario_atual['login']}")
@@ -749,8 +829,10 @@ def main():
             if "current_page" in st.session_state:
                 del st.session_state.current_page
             st.success("Logout realizado com sucesso!")
+
     if "current_page" not in st.session_state:
         st.session_state.current_page = "Criar Receituário"
+
     with content_col:
         if st.session_state.current_page == "Criar Receituário":
             tela_receita()
